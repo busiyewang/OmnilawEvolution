@@ -154,6 +154,7 @@ tests/                   95 个测试（单元 + 端到端 + 红队 + 第二阶�
 reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
 reports/demo2/           第二阶段演示报告（中文）
 docs/DESIGN.md           环境核对、参考项目核对与选型、架构、隔离设计、已知局限
+docs/ARCHITECTURE.md     整体架构、设计模式、参考项目的借鉴方式与取舍
 docs/PHASE2.md           第二阶段：触发、抑制、缓存、复查、预算、聊天与飞书接入
 docs/INTEGRATIONS.md     0.3.0：句向量、费用上限、飞书长连接、后台服务；真实结果与剩余步骤
 docs/deploy/             launchd / systemd / crontab 示例（未安装）
