@@ -23,15 +23,16 @@ ALIASES = {
     "帮助": "help", "状态": "status", "队列": "queue", "运行": "runs", "报告": "report", "研究": "research",
     "反馈": "feedback", "重复": "dup", "保留": "keep", "停止": "stop", "取消": "cancel", "恢复": "resume",
     "采用": "apply", "回滚": "rollback", "确认": "confirm", "版本": "releases", "预算": "budget",
-    "问题": "problems",
+    "问题": "problems", "日志": "journal", "日报": "journal",
 }
-READ = {"help", "status", "queue", "runs", "report", "releases", "budget", "problems"}
+READ = {"help", "status", "queue", "runs", "report", "releases", "budget", "problems", "journal"}
 WRITE = {"research", "feedback", "dup", "keep"}          # allowed users
 ADMIN = {"stop", "cancel", "resume", "apply", "rollback", "confirm"}
 CONFIRM = {"apply", "rollback"}
 
 HELP = """可用命令（中英文均可）：
   状态 status | 队列 queue | 运行 runs | 报告 report <run> | 版本 releases | 预算 budget | 问题 problems
+  日志 journal [weekly]  自上次日报（或周报）以来的研究与代码变更摘要
   研究 research <主题>            —— 加入研究任务
   反馈 feedback <文字>            —— 记录反馈
   重复 dup <条目> <原条目>        —— 标注漏掉的重复
@@ -167,6 +168,11 @@ class ChatRouter:
         return "今日用量：任务 %d，模型调用 %d，下载 %d 字节，候选 %d；剩余：%s" % (
             row["tasks"], row["model_calls"], row["download_bytes"], row["candidates"],
             ", ".join("%s=%s" % kv for kv in sorted(ledger.remaining().items())))
+
+    def cmd_journal(self, user, args, channel):
+        from . import journal
+        period = "weekly" if args and args[0].lower() in ("weekly", "周", "周报") else "daily"
+        return "自上次%s以来：\n%s" % ("周报" if period == "weekly" else "日报", journal.preview(self.db, self.cfg, period))
 
     def cmd_problems(self, user, args, channel):
         from .planner import open_problems

@@ -52,9 +52,10 @@ class MockLLM:
             proposals.append({
                 "problem": "Baseline only removes items whose URL strings are identical; tracking parameters, "
                            "scheme/host variants and reprints on other sites stay in the digest.",
-                "hypothesis": "Canonicalising URLs removes link-variant duplicates, and character-shingle "
-                              "Jaccard over title+text catches reprints and lightly edited copies without "
-                              "merging different events, because those share little wording.",
+                "hypothesis": ("Canonicalising URLs removes link-variant duplicates, and character-shingle "
+                               if "url_canonicalization" in methods else "Character-shingle ")
+                              + "Jaccard over title+text catches reprints and lightly edited copies without "
+                                "merging different events, because those share little wording.",
                 "methods": methods, "knowledge_ids": kids,
                 "variants": [{"threshold": 0.45, "k": 4}, {"threshold": 0.6, "k": 4}, {"threshold": 0.75, "k": 4}],
             })

@@ -35,7 +35,7 @@ class Migration(unittest.TestCase):
         conn.commit()
         conn.close()
         db = DB(path)
-        self.assertEqual(db.schema_version(), 2)
+        self.assertEqual(db.schema_version(), dbmod.SCHEMA_VERSION)
         self.assertEqual(db.one("SELECT url FROM sources")["url"], "u")  # data kept
         self.assertIsNone(db.one("SELECT supersedes FROM sources")["supersedes"])
         DB(path)  # idempotent

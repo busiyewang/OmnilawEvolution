@@ -13,7 +13,7 @@ import os
 
 from .db import loads, now
 
-KINDS = ("research", "failure_research", "knowledge_review", "propose", "run", "evaluate_release")
+KINDS = ("research", "failure_research", "knowledge_review", "propose", "run", "evaluate_release", "journal")
 LIVE = ("queued", "running", "deferred")
 FINAL = ("done", "failed", "cancelled", "skipped")
 

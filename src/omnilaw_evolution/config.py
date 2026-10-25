@@ -63,6 +63,9 @@ DEFAULTS = {
     "daily_budget": {"max_tasks": 50, "max_model_calls": 100, "max_download_bytes": 50000000,
                      "max_candidates": 20},
     "review_after_days": 30,
+    # Periodic records of research and code changes (journal task / `journal` command).
+    # dir: absolute, or relative to project_root; default <state_dir>/journal.
+    "journal": {"dir": None, "max_patch_lines": 120},
     "chat": {
         "allowed_users": [],                # chat user ids allowed to use read-only commands
         "admins": [],                       # ids allowed to stop/resume/apply/rollback

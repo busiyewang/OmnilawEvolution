@@ -8,11 +8,16 @@ import os
 import sqlite3
 import time
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # Migrations keyed by the version they produce. "additive" migrations only add
 # tables/columns, so releases recorded under an older schema stay compatible.
 MIGRATIONS = {
+    3: {"additive": True, "sql": [
+        """CREATE TABLE IF NOT EXISTS journals (
+            id INTEGER PRIMARY KEY, period TEXT NOT NULL, since TEXT NOT NULL, until TEXT NOT NULL,
+            path TEXT NOT NULL, counts TEXT NOT NULL DEFAULT '{}', created_at TEXT NOT NULL)""",
+    ]},
     2: {"additive": True, "sql": [
         """CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY, kind TEXT NOT NULL, payload TEXT NOT NULL DEFAULT '{}',

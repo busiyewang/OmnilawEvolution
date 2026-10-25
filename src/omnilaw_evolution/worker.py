@@ -230,6 +230,13 @@ class Worker:
         return {"release": res["release_id"], "metrics": m, "cached": res.get("cached", False),
                 "failures": [(i["id"], i["outcome"], i["case"]) for i in fails], "failure_research_tasks": queued}
 
+    def do_journal(self, task, budget):
+        from . import journal
+        out = journal.write(self.db, self.cfg, task["payload"].get("period", "daily"))
+        label = "日报" if out["period"] == "daily" else "周报"
+        self.notifier.send("研究与进化%s已生成：%s\n%s" % (label, out["path"], out["summary"]))
+        return {k: out[k] for k in ("period", "path", "counts", "knowledge_base", "changelog")}
+
     def do_knowledge_review(self, task, budget):
         p = task["payload"]
         report = review_sources(self.db, self.cfg, budget, limit=p.get("limit", 5),

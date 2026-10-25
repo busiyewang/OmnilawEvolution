@@ -288,6 +288,16 @@ def cmd_serve_feishu(args):
         pass
 
 
+def cmd_journal(args):
+    from . import journal
+    cfg, db = _ctx(args)
+    if args.preview:
+        print(journal.preview(db, cfg, args.period))
+        return
+    out = journal.write(db, cfg, args.period)
+    _print({k: out[k] for k in ("path", "since", "until", "counts", "knowledge_base", "changelog")})
+
+
 def cmd_models(args):
     from . import ops
     from .collector import semantic
@@ -430,6 +440,9 @@ def build_parser():
     p.add_argument("--port", type=int, default=8787)
     p.add_argument("--mode", choices=["http", "ws"], default="http",
                    help="http: event callback endpoint; ws: long connection via lark-oapi (no public URL)")
+    p = add("journal", cmd_journal, "write the daily/weekly record of research and code changes")
+    p.add_argument("--period", choices=["daily", "weekly"], default="daily")
+    p.add_argument("--preview", action="store_true", help="print the summary without writing files")
     p = add("models", cmd_models, "semantic model files: status (verify hashes) or fetch the pinned model")
     p.add_argument("action", choices=["status", "fetch"], nargs="?", default="status")
     add("doctor", cmd_doctor, "show what is configured and usable; credential names only, never values")

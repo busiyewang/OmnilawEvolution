@@ -333,5 +333,60 @@ class Service(unittest.TestCase):
             inst.close()
 
 
+class Journal(unittest.TestCase):
+    """Periodic records of research and code changes, straight from DB + Git."""
+
+    def test_daily_and_weekly_records(self):
+        import datetime as dt
+        from omnilaw_evolution import journal, runner
+        from omnilaw_evolution.chat import ChatRouter
+        inst = Instance()
+        try:
+            good, _ = inst.ready()
+            rid = runner.create_run(inst.db, inst.cfg, good)
+            self.assertEqual(runner.Runner(inst.db, inst.cfg, rid).execute(), "READY")
+            runner.apply_run(inst.db, inst.cfg, rid)
+            # Windows are [since, until) at one-second resolution; end slightly ahead so
+            # rows written in this same second fall inside.
+            soon = lambda s: dt.datetime.now().astimezone() + dt.timedelta(seconds=s)  # noqa: E731
+            first = journal.write(inst.db, inst.cfg, "daily", until=soon(1))
+            text = open(first["path"], encoding="utf-8").read()
+            self.assertIn("## 一、研究与知识", text)
+            self.assertIn("shingle_jaccard", text)          # knowledge with method
+            self.assertIn("原文摘录", text)                  # verbatim quote kept
+            self.assertIn("离线模式匹配", text)              # honest about the extractor
+            self.assertIn("```diff", text)                  # candidate patch / release diff
+            self.assertIn("发布 #2", text)
+            self.assertNotIn(inst.tmp, text)                # local paths scrubbed
+            self.assertEqual(first["counts"]["runs"], 1)
+            kb = open(first["knowledge_base"], encoding="utf-8").read()
+            self.assertIn("本地复现通过", kb)
+            log = open(first["changelog"], encoding="utf-8").read()
+            self.assertIn("dedup.py", log)
+            # The next daily journal starts where this one ended: nothing new in between.
+            second = journal.write(inst.db, inst.cfg, "daily", until=soon(2))
+            self.assertEqual(second["since"], first["until"])
+            self.assertEqual(second["counts"], {"sources": 0, "knowledge": 0, "runs": 0, "releases": 0})
+            self.assertIn("本期没有读取新来源", open(second["path"], encoding="utf-8").read())
+            weekly = journal.write(inst.db, inst.cfg, "weekly", until=soon(1))  # own window: the whole week
+            self.assertEqual(weekly["counts"]["runs"], 1)
+            self.assertIn("weekly", weekly["path"])
+            self.assertIn("新来源 0", ChatRouter(inst.db, inst.cfg).handle("local", "日志"))
+        finally:
+            inst.close()
+
+    def test_scheduled_journal_task_notifies(self):
+        inst = Instance()
+        try:
+            inst.init()
+            taskqueue.enqueue(inst.db, "journal", {"period": "daily"})
+            out = Worker(inst.db, inst.cfg).run_once()
+            self.assertEqual(out["status"], "done")
+            self.assertTrue(os.path.exists(out["result"]["path"]))
+            self.assertTrue(any("日报已生成" in r["text"] for r in inst.db.all("SELECT text FROM outbox")))
+        finally:
+            inst.close()
+
+
 if __name__ == "__main__":
     unittest.main()

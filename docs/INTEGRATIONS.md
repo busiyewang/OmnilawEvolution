@@ -114,7 +114,26 @@
   * 每周三 09:00 研究 “near-duplicate news detection”。
 * 通知目前只写 outbox（`omnilaw-evolution outbox` 查看）；配好飞书后改 `notify.kind`。
 
-## 6. 你需要做的
+## 6. 定期记录：研究知识与代码更新
+
+`journal.py` 定期把“学到了什么、代码改了什么”写成 Markdown，默认放在 `<state_dir>/journal/`
+（可用 `journal.dir` 改到别处，比如仓库里的 `reports/journal`）：
+
+| 文件 | 内容 |
+|---|---|
+| `daily/<日期>.md`、`weekly/<年>-W<周>.md` | 本期新读的来源（含注入标记）、新知识（主张、做法、条件、局限、原文摘录、位置、验证状态、抽取方式）、验证状态变化、来源复查；结束的运行（方法、结果、保留集 F1、原因）和达标候选的补丁；发布与回滚的代码 diff；新失败与开放问题；用量与费用 |
+| `KNOWLEDGE_BASE.md` | 累计知识库，按方法分组，每次刷新 |
+| `CHANGELOG.md` | 被进化模块的全部发布记录，含依据的知识、假设和 diff 统计 |
+
+* 每期覆盖“上一期结束 → 现在”的半开区间，日报和周报各自衔接，不重不漏；记录写入 `journals` 表（schema v3，纯新增迁移）。
+* 内容直接取自状态库和 Git，**不经模型总结**，所以不会编造结果；离线模式匹配抽取的知识和估算的 token 数都会注明。
+* 本机路径替换为 `<repo>` / `~`，文件可以直接分享。
+* 触发方式：
+  * 定时任务 `journal`（正式实例已加：每天 21:00 日报、每周日 20:00 周报），生成后发通知（摘要 + 路径）；
+  * 命令行 `omnilaw-evolution journal`；
+  * 聊天发送“日志”或“日志 周报”，只预览摘要，不写文件。
+
+## 7. 你需要做的
 
 1. **模型**：执行 `omnilaw-evolution env`，在生成的文件里填 `ANTHROPIC_API_KEY`。在 `omnilaw.json` 里设置：
    * `"model": {"provider": "anthropic", "price_per_mtok": {"input": 4, "output": 20}}`

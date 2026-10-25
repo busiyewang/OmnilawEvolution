@@ -106,6 +106,8 @@ omnilaw-evolution env                # 在 ~/.config/omnilaw-evolution/env 生�
 omnilaw-evolution doctor             # 哪些能力可用、还缺什么（只显示变量名）
 omnilaw-evolution serve-feishu --mode ws                  # 飞书长连接，无需公网地址
 omnilaw-evolution service install [--services daemon feishu]   # 安装为 launchd 服务
+omnilaw-evolution journal [--period weekly] [--preview]        # 研究与代码变更的日报/周报 + 知识库 + 变更记录
+omnilaw-evolution schedule add --name daily-journal --cron "0 21 * * *" --kind journal --payload '{"period":"daily"}'
 ```
 
 接入细节、真实结果和剩余步骤见 [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)。
@@ -150,7 +152,7 @@ fixtures/sources/        三类来源的固定快照 + 一个对抗性注入页�
 fixtures/batches/        日报输入快照
 scripts/build_datasets.py  标注数据生成脚本（全部虚构）
 fixtures/discovery/      录制的 arXiv 检索结果（摘要级），用于离线回放增量发现
-tests/                   95 个测试（单元 + 端到端 + 红队 + 第二阶段流程 + 真实能力接入）
+tests/                   97 个测试（单元 + 端到端 + 红队 + 第二阶段流程 + 真实能力接入 + 定期记录）
 reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
 reports/demo2/           第二阶段演示报告（中文）
 docs/DESIGN.md           环境核对、参考项目核对与选型、架构、隔离设计、已知局限
