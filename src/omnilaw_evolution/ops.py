@@ -15,6 +15,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import time
 import urllib.request
 
 ENV_FILE = os.path.join(os.path.expanduser("~"), ".config", "omnilaw-evolution", "env")
@@ -217,12 +218,28 @@ def install_service(cfg, config_path, services=("daemon",)):
         with open(path, "wb") as f:
             plistlib.dump(service_definition(cfg, config_path, label, args), f)
         domain = "gui/%d" % os.getuid()
-        subprocess.run(["launchctl", "bootout", "%s/%s" % (domain, label)], capture_output=True)
-        res = subprocess.run(["launchctl", "bootstrap", domain, path], capture_output=True, text=True)
-        if res.returncode != 0:
+        _bootout(domain, label)
+        for attempt in range(3):
+            res = subprocess.run(["launchctl", "bootstrap", domain, path], capture_output=True, text=True)
+            if res.returncode == 0:
+                break
+            time.sleep(2)
+        else:
             raise RuntimeError("launchctl bootstrap failed: %s" % res.stderr.strip())
         installed.append({"label": label, "plist": path})
     return installed
+
+
+def _bootout(domain, label, wait=20):
+    """Stop a loaded service and wait until launchd has really unloaded it
+    (bootout returns before the job is gone; bootstrapping too early fails)."""
+    target = "%s/%s" % (domain, label)
+    subprocess.run(["launchctl", "bootout", target], capture_output=True)
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        if subprocess.run(["launchctl", "print", target], capture_output=True).returncode != 0:
+            return
+        time.sleep(0.5)
 
 
 def uninstall_service():
@@ -233,7 +250,7 @@ def uninstall_service():
     for name in sorted(os.listdir(folder)):
         if name.startswith(LABEL) and name.endswith(".plist"):
             label = name[:-len(".plist")]
-            subprocess.run(["launchctl", "bootout", "gui/%d/%s" % (os.getuid(), label)], capture_output=True)
+            _bootout("gui/%d" % os.getuid(), label)
             os.remove(os.path.join(folder, name))
             removed.append(label)
     return removed
