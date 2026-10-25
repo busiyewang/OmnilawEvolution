@@ -5,7 +5,7 @@ candidate exists."""
 from __future__ import annotations
 
 from .db import loads, now
-from .knowledge import TEMPLATED_METHODS, extract_for_source
+from .knowledge import extract_for_source, implementable_methods
 
 
 def ensure_knowledge(db, llm, budget):
@@ -16,7 +16,7 @@ def ensure_knowledge(db, llm, budget):
         budget.charge("model_calls")
         created += extract_for_source(db, llm, src)
         budget.add(input_tokens=llm.last_usage.get("input_tokens"),
-                   output_tokens=llm.last_usage.get("output_tokens"))
+                   output_tokens=llm.last_usage.get("output_tokens"), cost_usd=llm.last_usage.get("cost_usd"))
     return created
 
 
@@ -28,7 +28,7 @@ COVERS = {"cross-language": ("cross_lingual_embedding",),
           "reprint": ("shingle_jaccard",), "near-duplicate-title": ("shingle_jaccard",)}
 
 
-def open_problems(db, knowledge, cfg=None):
+def open_problems(db, knowledge, cfg=None, include_covered=False):
     """Classify persisting failure classes:
 
     * needs_research - no stored knowledge addresses it; research topic attached
@@ -38,7 +38,7 @@ def open_problems(db, knowledge, cfg=None):
     Failures from the holdout split are never stored, so they never appear here.
     """
     topics = (cfg or {}).get("failure_topics", {})
-    templated = set(TEMPLATED_METHODS)
+    templated = set(implementable_methods(cfg))
     out = []
     for row in db.all("SELECT case_type, COUNT(*) AS n, GROUP_CONCAT(item_id) AS items FROM failures "
                       "WHERE status='open' GROUP BY case_type ORDER BY n DESC"):
@@ -58,13 +58,15 @@ def open_problems(db, knowledge, cfg=None):
         elif not [k for k in found if k["method"] in templated]:
             entry.update(status="blocked", knowledge_ids=[k["id"] for k in found],
                          methods=sorted({k["method"] for k in found}),
-                         note="knowledge found but no code template: the template executor cannot implement "
-                              "it, and the methods need a new ML dependency (pyproject.toml is protected). "
-                              "Needs a human decision: approve the dependency and a model executor.")
+                         note="knowledge found but no usable implementation: these methods need the optional "
+                              "semantic runtime (or a model executor), which is not enabled or not installed. "
+                              "Needs a human decision: approve the dependency (semantic.enabled) and fetch "
+                              "the pinned model.")
         else:
-            entry.update(status="covered", knowledge_ids=[k["id"] for k in found])
+            entry.update(status="covered", knowledge_ids=[k["id"] for k in found],
+                         methods=sorted({k["method"] for k in found if k["method"] in templated}))
         out.append(entry)
-    return [e for e in out if e["status"] != "covered"]
+    return out if include_covered else [e for e in out if e["status"] != "covered"]
 
 
 def propose(db, cfg, llm, budget, goal):
@@ -72,8 +74,9 @@ def propose(db, cfg, llm, budget, goal):
     knowledge = db.all("SELECT * FROM knowledge ORDER BY id")
     failures = db.all("SELECT item_id, case_type, kind, detail FROM failures WHERE status='open'")
     budget.charge("model_calls")
-    plans = llm.plan(goal, knowledge, failures)
-    budget.add(input_tokens=llm.last_usage.get("input_tokens"), output_tokens=llm.last_usage.get("output_tokens"))
+    plans = llm.plan(goal, knowledge, failures, implementable=implementable_methods(cfg))
+    budget.add(input_tokens=llm.last_usage.get("input_tokens"), output_tokens=llm.last_usage.get("output_tokens"),
+               cost_usd=llm.last_usage.get("cost_usd"))
     valid_ids = {k["id"] for k in knowledge}
     ids, skipped = [], []
     for p in plans:

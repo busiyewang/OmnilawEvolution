@@ -16,6 +16,24 @@ VERIFICATION_LEVELS = ("source_claim", "local_repro_pass", "local_repro_fail", "
 
 # Methods for which a code template exists (TemplateExecutor can implement them).
 TEMPLATED_METHODS = ("url_canonicalization", "shingle_jaccard", "title_token_overlap")
+# Templated too, but they need the optional semantic runtime, so they only
+# count as implementable after a human enabled it and the pinned model is present.
+SEMANTIC_METHODS = ("semantic_embedding", "cross_lingual_embedding")
+
+
+def semantic_status(cfg):
+    """(usable, reason) for the semantic runtime under this config."""
+    if not (cfg or {}).get("semantic", {}).get("enabled"):
+        return False, "semantic.enabled is false (dependency not approved in config)"
+    from .collector import semantic
+    return semantic.available()
+
+
+def implementable_methods(cfg):
+    methods = list(TEMPLATED_METHODS)
+    if semantic_status(cfg)[0]:
+        methods += SEMANTIC_METHODS
+    return methods
 
 # Methods the offline extractor recognises. With a real model adapter the model
 # fills these fields from the text instead; the catalogue is the mock's "reading".

@@ -18,6 +18,7 @@ import time
 
 from . import runner, taskqueue
 from .budget import Budget, BudgetExhausted, DailyLedger
+from .costs import SpendRefused
 from .db import loads, now
 from .discovery import discover_incremental, make_provider, normalise_topic
 from .llm import make_llm
@@ -66,6 +67,15 @@ class Worker:
                 outcome.update(status="deferred", error=str(exc))
             else:
                 taskqueue.finish(self.db, task["id"], "failed", error=str(exc))
+                outcome.update(status="failed", error=str(exc))
+        except SpendRefused as exc:
+            if exc.cap_reached:
+                taskqueue.defer(self.db, task["id"], _tomorrow(), "daily cost cap: %s" % exc)
+                self.notifier.send("今日模型费用上限已到，任务顺延到明天：%s" % exc, once_key="daily-cost-cap")
+                outcome.update(status="deferred", error=str(exc))
+            else:
+                taskqueue.finish(self.db, task["id"], "failed", error=str(exc))
+                self.notifier.send("模型调用被拒绝（配置问题）：%s" % exc, once_key="spend-config")
                 outcome.update(status="failed", error=str(exc))
         except Exception as exc:
             err = "%s: %s" % (type(exc).__name__, exc)
@@ -116,9 +126,26 @@ class Worker:
         return report
 
     def _schedule_failure_research(self, parent_id):
-        """Turn open failure classes into research tasks (or a blocked notice)."""
-        probs = open_problems(self.db, self.db.all("SELECT * FROM knowledge"), self.cfg)
+        """Turn open failure classes into research tasks (or a blocked notice).
+        A class whose covering methods became implementable (e.g. after the
+        semantic runtime was approved) but were never tried gets a propose task."""
+        everything = open_problems(self.db, self.db.all("SELECT * FROM knowledge"), self.cfg, include_covered=True)
+        probs = [p for p in everything if p["status"] != "covered"]
+        tried = set()
+        for row in self.db.all("SELECT methods FROM proposals"):
+            tried.update(loads(row["methods"], []))
+        untried = sorted({m for p in everything if p["status"] == "covered" for m in p["methods"]} - tried)
         queued = []
+        key = "propose:untried:" + ",".join(untried)
+        # Own key + cooldown: if the planner cannot use these methods, do not loop.
+        if untried and not self._recently_done(key, self.cfg["research"]["cooldown_hours"]):
+            tid, created = taskqueue.enqueue(self.db, "propose", {"goal": self.cfg["queue"]["goal"]},
+                                             origin="failure", priority=40, dedupe_key=key,
+                                             parent_id=parent_id)
+            if created:
+                queued.append(tid)
+                self.notifier.send("方法 %s 现已可实现且尚未试验，已排队重新规划。" % ", ".join(untried),
+                                   once_key="unblocked:" + ",".join(untried))
         for p in probs:
             if p["status"] == "needs_research":
                 key = "failure:" + p["case_type"]
@@ -219,15 +246,29 @@ class DaemonRefused(Exception):
     pass
 
 
-def daemon(db, cfg, max_cycles=None, sleep=time.sleep):
-    """Background loop: schedule tick + drain the queue, every poll interval.
-    Refuses to start unless ``background`` is true and a daily budget is set."""
+def check_daemon_config(cfg):
+    """Raise DaemonRefused unless background operation is explicitly enabled and
+    bounded: a daily budget, and for a paid model a price and a dollar cap."""
+    from .costs import price
+
     if not cfg.get("background"):
         raise DaemonRefused("background operation is disabled (set \"background\": true in the config)")
     db_ = cfg.get("daily_budget") or {}
     missing = [k for k in ("max_tasks", "max_model_calls", "max_download_bytes") if db_.get(k) is None]
     if missing:
         raise DaemonRefused("daily_budget must set %s before background operation" % ", ".join(missing))
+    if cfg["model"]["provider"] != "mock" and price(cfg) is None:
+        raise DaemonRefused("a paid model is configured: set model.price_per_mtok")
+    paid = cfg["model"]["provider"] != "mock" or cfg["executor"]["kind"] == "claude-code"
+    if paid and not cfg["budget"].get("max_daily_cost_usd"):
+        raise DaemonRefused("a paid model or executor is configured: set budget.max_daily_cost_usd")
+    return db_
+
+
+def daemon(db, cfg, max_cycles=None, sleep=time.sleep):
+    """Background loop: schedule tick + drain the queue, every poll interval.
+    Refuses to start unless ``background`` is true and a daily budget is set."""
+    db_ = check_daemon_config(cfg)
     stop = {"flag": False}
 
     def _term(signum, frame):

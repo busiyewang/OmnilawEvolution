@@ -6,11 +6,14 @@
     "provider": "mock",
     "model": "claude-opus-5-5",
     "api_key_env": "ANTHROPIC_API_KEY",
-    "effort": "medium"
+    "effort": "medium",
+    "price_per_mtok": null,
+    "max_tokens": 16000
   },
   "executor": {
     "kind": "template",
-    "claude_cli": "claude"
+    "claude_cli": "claude",
+    "max_usd_per_candidate": 1.0
   },
   "sandbox": {
     "mode": "auto"
@@ -88,5 +91,8 @@
     "webhook_secret_env": "FEISHU_WEBHOOK_SECRET"
   },
   "auto_apply": false,
-  "background": false
+  "background": false,
+  "semantic": {
+    "enabled": false
+  }
 }

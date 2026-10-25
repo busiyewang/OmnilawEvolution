@@ -21,6 +21,7 @@ DEFAULTS = {
         "src/omnilaw_evolution/*.py", "src/omnilaw_evolution/adapters/**",
         "src/omnilaw_evolution/collector/pipeline.py",
         "src/omnilaw_evolution/collector/healthcheck.py", "src/omnilaw_evolution/collector/__init__.py",
+        "src/omnilaw_evolution/collector/semantic.py",
     ],
     "model": {"provider": "mock", "model": "claude-opus-5-5", "api_key_env": "ANTHROPIC_API_KEY",
               "effort": "medium", "price_per_mtok": None},
@@ -71,6 +72,9 @@ DEFAULTS = {
     },
     "notify": {"kind": "mock",              # mock (outbox only) | stdout | feishu_webhook
                "webhook_url_env": "FEISHU_WEBHOOK_URL", "webhook_secret_env": "FEISHU_WEBHOOK_SECRET"},
+    # Optional sentence-embedding runtime (collector/semantic.py). A human turns it on
+    # after approving the dependency; the pinned model is fetched with `models fetch`.
+    "semantic": {"enabled": False},
     "auto_apply": False,
     "background": False,                    # the daemon refuses to start unless this is true
 }

@@ -95,13 +95,33 @@ def jaccard(a, b):
     return len(a & b) / float(len(a | b))
 '''
 
+SEMANTIC = '''
+
+import numpy as _np
+from omnilaw_evolution.collector import semantic as _semantic
+
+SEM_THRESHOLD = {sem}      # cosine limit for same-language pairs; None = not checked
+XLANG_THRESHOLD = {xlang}  # cosine limit for cross-language pairs; None = not checked
+_semantic.warm_up()  # load the pinned model at import time, like the pipeline does once per process
+
+
+def _embed(items):
+    return _semantic.encode([(i.get("title", "") + " " + i.get("text", "")).strip() for i in items])
+'''
+
 DEDUP_HEAD = '''
 
 def dedup(items):
     decisions = []
     kept = []          # (id, signature) of items kept so far
     by_url = {}
-    for item in items:
+'''
+
+DEDUP_HEAD_SEM = '''    vecs = _embed(items) if items else None
+    kept_vec = []      # (id, lang, position) of items kept so far
+'''
+
+DEDUP_LOOP = '''    for pos, item in enumerate(items):
         iid = item["id"]
 '''
 
@@ -138,6 +158,25 @@ DEDUP_TITLE_CHECK = '''        sig = title_tokens(item.get("title", ""))
             continue
 '''
 
+DEDUP_SEM_CHECK = '''        lang = item.get("lang", "")
+        best_id, best = None, 0.0
+        for kid, klang, kpos in kept_vec:
+            limit = SEM_THRESHOLD if klang == lang else XLANG_THRESHOLD
+            if limit is None:
+                continue
+            score = float(_np.dot(vecs[pos], vecs[kpos]))
+            if score >= limit and score > best:
+                best_id, best = kid, score
+        if best_id is not None:
+            decisions.append({"id": iid, "duplicate_of": best_id,
+                              "reason": "semantic%s %.2f" % ("" if kept_lang[best_id] == lang else "-xlang", best)})
+            continue
+'''
+
+DEDUP_TAIL_SEM = '''        kept_vec.append((iid, lang, pos))
+        kept_lang[iid] = lang
+'''
+
 DEDUP_TAIL_SIG = '''        kept.append((iid, sig))
 '''
 
@@ -146,7 +185,10 @@ DEDUP_TAIL = '''        by_url[url_key] = iid
     return decisions
 '''
 
-KNOWN_METHODS = ("url_canonicalization", "shingle_jaccard", "title_token_overlap")
+BASE_METHODS = ("url_canonicalization", "shingle_jaccard", "title_token_overlap")
+# Need the optional semantic runtime (collector/semantic.py + pinned model).
+SEMANTIC_METHODS = ("semantic_embedding", "cross_lingual_embedding")
+KNOWN_METHODS = BASE_METHODS + SEMANTIC_METHODS
 
 
 def render_dedup(methods, params, run_id, variant, provenance, generator="TemplateExecutor"):
@@ -163,12 +205,26 @@ def render_dedup(methods, params, run_id, variant, provenance, generator="Templa
         src += SHINGLES.format(threshold=float(params.get("threshold", 0.6)), k=int(params.get("k", 4)))
     if "title_token_overlap" in methods:
         src += TITLE_TOKENS.format(threshold=float(params.get("threshold", 0.3)))
+    semantic = [m for m in methods if m in SEMANTIC_METHODS]
+    if semantic:
+        sem = float(params.get("sem_threshold", 0.9)) if "semantic_embedding" in methods else None
+        xlang = float(params.get("xlang_threshold", 0.75)) if "cross_lingual_embedding" in methods else None
+        src += SEMANTIC.format(sem=sem, xlang=xlang)
     src += DEDUP_HEAD
+    if semantic:
+        src += DEDUP_HEAD_SEM + "    kept_lang = {}\n"
+    src += DEDUP_LOOP
     src += DEDUP_URL_CANON if "url_canonicalization" in methods else DEDUP_URL_EXACT
     src += DEDUP_URL_CHECK
+    # All checks come before any "kept" bookkeeping, so a list of kept items
+    # never contains one that a later check removed.
     if "shingle_jaccard" in methods:
-        src += DEDUP_SHINGLE_CHECK + DEDUP_TAIL_SIG
+        src += DEDUP_SHINGLE_CHECK
     elif "title_token_overlap" in methods:
-        src += DEDUP_TITLE_CHECK + DEDUP_TAIL_SIG
+        src += DEDUP_TITLE_CHECK
+    if semantic:
+        src += DEDUP_SEM_CHECK + DEDUP_TAIL_SEM
+    if "shingle_jaccard" in methods or "title_token_overlap" in methods:
+        src += DEDUP_TAIL_SIG
     src += DEDUP_TAIL
     return src

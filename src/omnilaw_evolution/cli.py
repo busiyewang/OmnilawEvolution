@@ -274,14 +274,61 @@ def cmd_outbox(args):
 
 
 def cmd_serve_feishu(args):
-    from .adapters.feishu import make_server
+    from .adapters.feishu import make_server, run_long_connection
     cfg, db = _ctx(args)
+    if args.mode == "ws":
+        print("feishu long connection: connecting with app credentials", file=sys.stderr)
+        run_long_connection(cfg)
+        return
     srv = make_server(cfg, args.host, args.port)
     print("feishu event endpoint: http://%s:%d/feishu/events" % (args.host, args.port), file=sys.stderr)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         pass
+
+
+def cmd_models(args):
+    from . import ops
+    from .collector import semantic
+    if args.action == "fetch":
+        last = {}
+
+        def progress(rel, n):
+            if n - last.get(rel, 0) >= 50 << 20:
+                last[rel] = n
+                print("  %s: %d MB" % (rel, n >> 20), file=sys.stderr)
+        _print({"model": semantic.MODEL["name"], "dir": semantic.model_dir(), "files": ops.fetch_model(progress)})
+    else:
+        ok, why = semantic.available(verify_hash=True)
+        _print({"model": semantic.MODEL["name"], "revision": semantic.MODEL["revision"],
+                "license": semantic.MODEL["license"], "dir": semantic.model_dir(), "usable": ok, "reason": why})
+
+
+def cmd_doctor(args):
+    from . import ops
+    cfg = load_config(args.config)
+    _print(ops.doctor(cfg))
+
+
+def cmd_env(args):
+    from . import ops
+    cfg = load_config(args.config)
+    path, created = ops.init_env_file(cfg)
+    _print({"env_file": path, "created": created,
+            "next": "edit it (values stay on this machine; mode 600), never paste secrets into chat"})
+
+
+def cmd_service(args):
+    from . import ops
+    cfg = load_config(args.config)
+    if args.action == "install":
+        config_path = args.config or os.environ.get("OMNILAW_CONFIG") or "omnilaw.json"
+        _print({"installed": ops.install_service(cfg, config_path, services=args.services)})
+    elif args.action == "uninstall":
+        _print({"removed": ops.uninstall_service()})
+    else:
+        _print(ops.service_status())
 
 
 def cmd_demo2(args):
@@ -381,6 +428,15 @@ def build_parser():
     p = add("serve-feishu", cmd_serve_feishu, "run the Feishu event-callback endpoint")
     p.add_argument("--host", default="127.0.0.1")
     p.add_argument("--port", type=int, default=8787)
+    p.add_argument("--mode", choices=["http", "ws"], default="http",
+                   help="http: event callback endpoint; ws: long connection via lark-oapi (no public URL)")
+    p = add("models", cmd_models, "semantic model files: status (verify hashes) or fetch the pinned model")
+    p.add_argument("action", choices=["status", "fetch"], nargs="?", default="status")
+    add("doctor", cmd_doctor, "show what is configured and usable; credential names only, never values")
+    add("env", cmd_env, "create the credentials env file template (mode 600) outside the repository")
+    p = add("service", cmd_service, "install / uninstall / status of the background service (macOS launchd)")
+    p.add_argument("action", choices=["install", "uninstall", "status"])
+    p.add_argument("--services", nargs="+", choices=["daemon", "feishu"], default=["daemon"])
     p = add("demo2", cmd_demo2, "phase-2 walkthrough: queue, triggers, suppression, cache, chat")
     p.add_argument("--workdir", required=True)
     p.add_argument("--report-out")
@@ -389,9 +445,15 @@ def build_parser():
 
 
 def main(argv=None):
+    from .costs import SpendRefused
+    from .ops import load_env_file
+    from .worker import DaemonRefused
     args = build_parser().parse_args(argv)
     try:
+        load_env_file()  # credentials file outside the repo, if present
         args.fn(args)
+    except (DaemonRefused, SpendRefused) as exc:
+        sys.exit("refused: %s" % exc)
     except (runner.RunError, ValueError, RuntimeError, LookupError) as exc:
         sys.exit("error: %s" % exc)
     return 0

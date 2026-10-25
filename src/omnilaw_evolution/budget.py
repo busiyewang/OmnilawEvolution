@@ -50,6 +50,8 @@ class Budget:
             if v is None:
                 continue
             self.usage[k] = (self.usage.get(k) or 0) + v
+            if k == "cost_usd":
+                self.usage["cost_note"] = "priced at configured per-MTok rates"
         self._changed()
 
     def tick(self):

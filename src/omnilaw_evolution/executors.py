@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 
 from . import sandbox
@@ -38,6 +39,13 @@ class ClaudeCodeExecutor:
 
     def write_candidate(self, workdir, proposal, variant, run_id, variant_idx, provenance, budget=None,
                         stop_check=None):
+        from .costs import SpendGuard
+
+        guard = SpendGuard(self.cfg)
+        # Spending limit for this candidate: the per-candidate cap, never more than
+        # what is left of today's cap. The CLI enforces it with --max-budget-usd.
+        limit = min(float(self.cfg["executor"].get("max_usd_per_candidate", 1.0)), guard.remaining())
+        guard.check(limit, need_price=False)
         if budget:
             budget.charge("model_calls")
         prompt = (
@@ -47,7 +55,8 @@ class ClaudeCodeExecutor:
             % (self.cfg["target_module"], proposal["goal"], proposal["hypothesis"], proposal["methods"],
                variant, "\n".join(provenance)))
         cmd = [self.cfg["executor"].get("claude_cli", "claude"), "-p", prompt,
-               "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit"]
+               "--permission-mode", "acceptEdits", "--allowedTools", "Read,Edit",
+               "--output-format", "json", "--max-budget-usd", "%.2f" % limit]
         scratch = os.path.join(os.path.dirname(workdir), "executor-%s" % variant_idx)
         home = os.path.expanduser("~")
         res = sandbox.run(cmd, scratch=scratch, cwd=workdir, network=True,
@@ -56,9 +65,18 @@ class ClaudeCodeExecutor:
                           timeout=self.cfg["budget"]["max_process_seconds"] * 5,
                           mode=self.cfg["sandbox"]["mode"], stop_check=stop_check,
                           env_extra={k: os.environ[k] for k in ("ANTHROPIC_API_KEY",) if k in os.environ})
-        if res["returncode"] != 0:
-            raise RuntimeError("claude executor failed: %s" % res["stderr"][-2000:])
-        return {"summary": res["stdout"][-2000:]}
+        try:
+            out = json.loads(res["stdout"])
+        except ValueError:
+            out = {}
+        cost = out.get("total_cost_usd")
+        # An unreported cost is booked at the full limit rather than as zero.
+        guard.record(cost if cost is not None else limit)
+        if budget:
+            budget.add(cost_usd=cost if cost is not None else limit)
+        if res["returncode"] != 0 or out.get("is_error"):
+            raise RuntimeError("claude executor failed: %s" % (out.get("result") or res["stderr"])[-2000:])
+        return {"summary": str(out.get("result", ""))[-2000:], "cost_usd": cost}
 
 
 class ScopeViolatingExecutor(TemplateExecutor):

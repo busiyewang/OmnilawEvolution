@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omnilaw-evolution"
-version = "0.2.0"
+version = "0.3.0"
 description = "A personal self-evolving research agent: read sources, propose cited changes to its own code, evaluate in isolation, adopt or reject, roll back."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -12,7 +12,11 @@ license = { text = "MIT" }
 dependencies = []  # core is standard library only
 
 [project.optional-dependencies]
-anthropic = ["anthropic"]
+# Each extra is opt-in; the core keeps running on the standard library alone.
+anthropic = ["anthropic>=2.0; python_version >= '3.10'"]
+semantic = ["onnxruntime>=1.17", "tokenizers>=0.15", "numpy>=1.24"]   # + `omnilaw-evolution models fetch`
+feishu = ["lark-oapi>=1.4"]                                           # long-connection mode
+all = ["omnilaw-evolution[anthropic,semantic,feishu]"]
 
 [project.scripts]
 omnilaw-evolution = "omnilaw_evolution.cli:main"

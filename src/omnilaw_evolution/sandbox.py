@@ -19,7 +19,8 @@ import signal
 import subprocess
 import time
 
-SAFE_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "HOME", "TMPDIR")
+# OMNILAW_MODEL_DIR is a path, not a secret: the semantic runtime reads the pinned model from it.
+SAFE_ENV_KEYS = ("PATH", "LANG", "LC_ALL", "HOME", "TMPDIR", "OMNILAW_MODEL_DIR")
 
 
 class SandboxTimeout(Exception):

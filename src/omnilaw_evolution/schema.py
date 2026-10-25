@@ -58,18 +58,28 @@ KNOWLEDGE_SCHEMA = {
             "quote": {"type": "string", "maxLength": 600}}}}},
 }
 
-PROPOSAL_SCHEMA = {
-    "type": "object", "additionalProperties": False, "required": ["proposals"],
-    "properties": {"proposals": {"type": "array", "maxItems": 4, "items": {
-        "type": "object", "additionalProperties": False,
-        "required": ["problem", "hypothesis", "methods", "knowledge_ids", "variants"],
-        "properties": {
-            "problem": STR, "hypothesis": STR,
-            "methods": {"type": "array", "maxItems": 3, "items": {
-                "type": "string", "enum": ["url_canonicalization", "shingle_jaccard", "title_token_overlap"]}},
-            "knowledge_ids": {"type": "array", "maxItems": 10, "items": {"type": "integer"}},
-            "variants": {"type": "array", "maxItems": 6, "items": {
-                "type": "object", "additionalProperties": False,
-                "properties": {"threshold": {"type": "number", "minimum": 0.05, "maximum": 0.95},
-                               "k": {"type": "integer", "minimum": 2, "maximum": 8}}}}}}}},
-}
+BASE_METHODS = ["url_canonicalization", "shingle_jaccard", "title_token_overlap"]
+
+
+def proposal_schema(methods=None):
+    """Proposal schema whose method enum is the set the executor can implement."""
+    return {
+        "type": "object", "additionalProperties": False, "required": ["proposals"],
+        "properties": {"proposals": {"type": "array", "maxItems": 4, "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["problem", "hypothesis", "methods", "knowledge_ids", "variants"],
+            "properties": {
+                "problem": STR, "hypothesis": STR,
+                "methods": {"type": "array", "maxItems": 4, "items": {
+                    "type": "string", "enum": list(methods or BASE_METHODS)}},
+                "knowledge_ids": {"type": "array", "maxItems": 10, "items": {"type": "integer"}},
+                "variants": {"type": "array", "maxItems": 6, "items": {
+                    "type": "object", "additionalProperties": False,
+                    "properties": {"threshold": {"type": "number", "minimum": 0.05, "maximum": 0.95},
+                                   "k": {"type": "integer", "minimum": 2, "maximum": 8},
+                                   "sem_threshold": {"type": "number", "minimum": 0.5, "maximum": 0.99},
+                                   "xlang_threshold": {"type": "number", "minimum": 0.5, "maximum": 0.99}}}}}}}},
+    }
+
+
+PROPOSAL_SCHEMA = proposal_schema()
