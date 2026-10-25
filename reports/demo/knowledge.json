@@ -1,0 +1,53 @@
+[
+  {
+    "id": 1,
+    "source_id": 1,
+    "method": "url_canonicalization",
+    "claim": "Syntactically different URLs often identify the same resource; normalising scheme/host case, default ports, trailing slash, fragment and unused query parameters maps them to one key.",
+    "steps": "Lower-case scheme and host; drop default port; remove fragment; remove the trailing slash consistently; drop query keys known to be unused (tracking keys such as utm_*, fbclid, spm); sort remaining query parameters.",
+    "conditions": "Applies to items whose URL is the primary identity, e.g. news and blog links.",
+    "limitations": "Some normalisations change semantics on some servers (fragment-routed AJAX pages, order-sensitive or meaningful query parameters). Cannot detect reprints on other domains.",
+    "locator": "chars 123-531 (line 3)",
+    "excerpt": "March 2021}}\n{{Distinguish|URL canonicalization}}\n[[File:Normalization URL Animation.gif|thumb|right|300px|Types of URI normalization.]]\n'''URI normalization''' is the process by which [[Uniform Resource Identifier|URIs]] are modified and standardized in a consistent manner. The goal of the normalization process is to transform a URI into a normalized URI so it is possible to determine if two syntacticall",
+    "verification": "effective_in_user_task",
+    "applicable": 1,
+    "experiments": "[\"run-1\", \"run-2\", \"release-2:batch2\", \"run-6\"]",
+    "extractor": "mock",
+    "created_at": "2026-10-25T10:19:47-0700",
+    "reviewed_at": "2026-10-25T10:20:02-0700"
+  },
+  {
+    "id": 2,
+    "source_id": 2,
+    "method": "minhash_lsh",
+    "claim": "MinHash signatures estimate Jaccard similarity; LSH banding finds candidate pairs without comparing all pairs.",
+    "steps": "Hash each shingle with num_perm permutations, keep minima as the signature; estimated Jaccard = fraction of equal signature entries; bucket by bands to find candidates.",
+    "conditions": "Worth it when pairwise comparison is too slow (large corpora).",
+    "limitations": "Adds estimation error and a dependency; daily batches here are small, so exact Jaccard is used instead. Recorded as not applicable at the current scale.",
+    "locator": "chars 834-1245 (line 36)",
+    "excerpt": "fine64\" (since 2.0.0): the input hash is pre-mixed once with\n# the MurmurHash3 finalizer (a fixed bijection), then each permutation applies\n# phv_k = a_k * h + b_k computed in uint{w}, where the hardware wraparound IS\n# the modulo 2^w. With a_k odd the map is a bijection on [0, 2^w), so the\n# permutation step cannot introduce hash collisions -- unlike \"legacy\", whose\n# fold from the 61-bit prime range down t",
+    "verification": "source_claim",
+    "applicable": 0,
+    "experiments": "[]",
+    "extractor": "mock",
+    "created_at": "2026-10-25T10:19:47-0700",
+    "reviewed_at": null
+  },
+  {
+    "id": 3,
+    "source_id": 3,
+    "method": "shingle_jaccard",
+    "claim": "Representing each document by its set of n-grams and thresholding the Jaccard index finds approximate (near-duplicate) matches, e.g. reprints with small edits.",
+    "steps": "Normalise text; build the set of n-grams per document; compare a new document with kept ones; mark as duplicate when Jaccard >= threshold.",
+    "conditions": "Near-duplicates share most of their wording. Exact Jaccard is affordable for small batches (hundreds of items); MinHash/LSH approximates it at corpus scale.",
+    "limitations": "Paraphrases and translations share few n-grams and are missed. Word n-grams need whitespace tokenisation, which does not work for Chinese; character n-grams are a local adaptation, not what the paper evaluated. Threshold must be tuned on labelled data.",
+    "locator": "chars 1850-2257 (line 7)",
+    "excerpt": "a is to represent each document by its respective set of -grams and . We can then use hash functions to approximate the Jaccard Index ( Jaccard, 1912 ) : If the Jaccard Index between and is sufficiently high, it is likely that documents are approximate matches of each other. To efficiently approximate the Jaccard index, MinHash constructs document signatures by sorting each of the -grams via a hash funct",
+    "verification": "effective_in_user_task",
+    "applicable": 1,
+    "experiments": "[\"run-1\", \"release-2:batch2\", \"run-6\"]",
+    "extractor": "mock",
+    "created_at": "2026-10-25T10:19:47-0700",
+    "reviewed_at": "2026-10-25T10:20:02-0700"
+  }
+]

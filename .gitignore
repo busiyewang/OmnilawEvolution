@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+.omnilaw/
+.demo/
+omnilaw.json
+.DS_Store

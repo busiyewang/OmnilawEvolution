@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnilaw-evolution"
+version = "0.1.0"
+description = "A personal self-evolving research agent: read sources, propose cited changes to its own code, evaluate in isolation, adopt or reject, roll back."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []  # core is standard library only
+
+[project.optional-dependencies]
+anthropic = ["anthropic"]
+
+[project.scripts]
+omnilaw-evolution = "omnilaw_evolution.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

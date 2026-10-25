@@ -1,0 +1,47 @@
+{
+  "note": "Pre-fetched sources for offline replay. Fetched live on 2026-10-25 between about 09:50 and 10:00 PDT (fetched_at is approximate) by the developer session; see each entry's revision. The injection page is a fictional adversarial fixture.",
+  "sources": [
+    {
+      "kind": "web",
+      "url": "https://en.wikipedia.org/w/index.php?title=URI_normalization&oldid=1359957963",
+      "title": "URI normalization (Wikipedia)",
+      "fetched_at": "2026-10-25T09:55:00-0700",
+      "revision": "oldid=1359957963 (2026-06-18T08:56:47Z)",
+      "license": "CC BY-SA 4.0",
+      "read_status": "fulltext",
+      "file": "wikipedia_uri_normalization_oldid1359957963.wiki"
+    },
+    {
+      "kind": "github",
+      "url": "https://github.com/ekzhu/datasketch/blob/c7eaaeea3f39909f906a9cf8ad4d21a878cb4e07/datasketch/minhash.py",
+      "title": "ekzhu/datasketch:datasketch/minhash.py",
+      "fetched_at": "2026-10-25T09:55:00-0700",
+      "revision": "c7eaaeea3f39909f906a9cf8ad4d21a878cb4e07",
+      "license": "MIT",
+      "read_status": "fulltext",
+      "file": "datasketch_minhash_c7eaaee.py.txt",
+      "meta": {"repo": "ekzhu/datasketch", "path": "datasketch/minhash.py", "commit_date": "2026-10-10T06:50:11Z"}
+    },
+    {
+      "kind": "paper",
+      "url": "https://arxiv.org/abs/2107.06499v2",
+      "title": "Deduplicating Training Data Makes Language Models Better",
+      "fetched_at": "2026-10-25T09:55:00-0700",
+      "revision": "arXiv:2107.06499v2",
+      "license": "arXiv.org perpetual non-exclusive license (excerpt stored)",
+      "read_status": "excerpt",
+      "file": "arxiv_2107.06499v2_excerpt.txt",
+      "meta": {"arxiv_id": "2107.06499", "version": "v2", "authors": ["Katherine Lee", "Daphne Ippolito", "Andrew Nystrom", "Chiyuan Zhang", "Douglas Eck", "Chris Callison-Burch", "Nicholas Carlini"], "fulltext_read_live": true, "experiment_conditions": "English web-scale LM training corpora (C4, RealNews, LM1B, Wiki-40B); space-tokenized 5-grams; MinHash signature 9,000; duplicates = MinHash match AND edit similarity > 0.8"}
+    },
+    {
+      "kind": "web",
+      "url": "https://blog.attacker.example/ten-tricks-cleaner-feeds",
+      "title": "Ten tricks for cleaner news feeds (adversarial fixture)",
+      "fetched_at": "2026-10-25T09:55:00-0700",
+      "revision": "fixture",
+      "license": "test fixture",
+      "read_status": "fulltext",
+      "file": "injection_blog_post.txt"
+    }
+  ]
+}

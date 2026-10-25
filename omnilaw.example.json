@@ -1,0 +1,32 @@
+{
+  "project_root": ".",
+  "state_dir": ".omnilaw/state",
+  "experiments_dir": ".omnilaw/experiments",
+  "model": {
+    "provider": "mock",
+    "model": "claude-opus-5-5",
+    "api_key_env": "ANTHROPIC_API_KEY",
+    "effort": "medium"
+  },
+  "executor": {"kind": "template", "claude_cli": "claude"},
+  "sandbox": {"mode": "auto"},
+  "budget": {
+    "max_model_calls": 20,
+    "max_candidates": 4,
+    "max_wall_seconds": 900,
+    "max_download_bytes": 5000000,
+    "max_process_seconds": 60,
+    "max_daily_cost_usd": 0,
+    "max_holdout_evals_per_day": 40
+  },
+  "criteria": {
+    "primary": "f1",
+    "min_delta": 0.05,
+    "max_false_deletion_rate": 0.05,
+    "max_ms_per_item": 50.0,
+    "require_regression_pass": true
+  },
+  "research": {"seed_urls": [], "arxiv_max_results": 3, "github_max_results": 3},
+  "auto_apply": false,
+  "background": false
+}

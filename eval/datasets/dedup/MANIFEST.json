@@ -1,0 +1,25 @@
+{
+  "name": "dedup",
+  "note": "Fictional mechanism-demo data; not a general benchmark.",
+  "splits": {
+    "batch2": {
+      "clusters": 8,
+      "file": "batch2.jsonl",
+      "items": 16,
+      "sha256": "de2c512963c3ad711afe951e2feb715ba26296f32bcce866ac81f5411bfa6a9a"
+    },
+    "dev": {
+      "clusters": 14,
+      "file": "dev.jsonl",
+      "items": 26,
+      "sha256": "f13493c0d4dccc4a62e3ef9fa3eea2e9dffadbfd63890a989fa156544f510976"
+    },
+    "holdout": {
+      "clusters": 16,
+      "file": "holdout.jsonl",
+      "items": 28,
+      "sha256": "365be4b88efe284b0e7a91e72e8170bcb69745c611a031b865e76621bb2e2649"
+    }
+  },
+  "version": "2026-10-25.1"
+}
