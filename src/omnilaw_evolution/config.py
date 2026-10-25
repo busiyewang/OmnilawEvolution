@@ -18,7 +18,8 @@ DEFAULTS = {
     # Never writable, even if a writable glob would match.
     "protected_paths": [
         "eval/**", "tests/**", "omnilaw.json", "omnilaw.example.json", "pyproject.toml",
-        "src/omnilaw_evolution/*.py", "src/omnilaw_evolution/collector/pipeline.py",
+        "src/omnilaw_evolution/*.py", "src/omnilaw_evolution/adapters/**",
+        "src/omnilaw_evolution/collector/pipeline.py",
         "src/omnilaw_evolution/collector/healthcheck.py", "src/omnilaw_evolution/collector/__init__.py",
     ],
     "model": {"provider": "mock", "model": "claude-opus-5-5", "api_key_env": "ANTHROPIC_API_KEY",
@@ -42,10 +43,36 @@ DEFAULTS = {
         "require_regression_pass": True,
     },
     "fetch": {"timeout": 20, "max_bytes": 2000000, "user_agent": "omnilaw-evolution/0.1 (research bot)"},
-    "research": {"seed_urls": [], "arxiv_max_results": 3, "github_max_results": 3},
-    "notify": {"kind": "mock"},             # chat adapters are a later phase
+    "research": {
+        "seed_urls": [], "arxiv_max_results": 3, "github_max_results": 3,
+        "min_relevance": 0.5, "max_ingest_per_task": 3, "cooldown_hours": 72,
+        "positive_terms": ["duplicate", "dedup", "near-duplicate", "similarity", "paraphrase", "去重"],
+        "negative_terms": ["image", "video", "speech", "audio", "sign", "phishing"],
+        "snapshot_manifest": None,          # replay a recorded discovery feed instead of searching live
+    },
+    # Research topic for each failure class that has no covering knowledge yet.
+    "failure_topics": {"cross-language": "language-agnostic sentence embedding",
+                       "paraphrase": "paraphrase identification"},
+    "queue": {
+        "goal": "减少技术日报中的重复材料，同时保留带有新信息的条目",
+        "auto_shadow_runs": True,           # shadow runs only produce candidates + reports
+        "poll_seconds": 60,
+    },
+    # Cross-task limits per calendar day, enforced by the worker.
+    "daily_budget": {"max_tasks": 50, "max_model_calls": 100, "max_download_bytes": 50000000,
+                     "max_candidates": 20},
+    "review_after_days": 30,
+    "chat": {
+        "allowed_users": [],                # chat user ids allowed to use read-only commands
+        "admins": [],                       # ids allowed to stop/resume/apply/rollback
+        "confirm_ttl_seconds": 600,
+        "feishu": {"verification_token_env": "FEISHU_VERIFICATION_TOKEN",
+                   "app_id_env": "FEISHU_APP_ID", "app_secret_env": "FEISHU_APP_SECRET"},
+    },
+    "notify": {"kind": "mock",              # mock (outbox only) | stdout | feishu_webhook
+               "webhook_url_env": "FEISHU_WEBHOOK_URL", "webhook_secret_env": "FEISHU_WEBHOOK_SECRET"},
     "auto_apply": False,
-    "background": False,
+    "background": False,                    # the daemon refuses to start unless this is true
 }
 
 
@@ -68,6 +95,9 @@ class Config(dict):
             if self.get(key):
                 p = os.path.expanduser(self[key])
                 self[key] = os.path.realpath(p if os.path.isabs(p) else os.path.join(base, p))
+        snap = self.get("research", {}).get("snapshot_manifest")
+        if snap and not os.path.isabs(snap):
+            self["research"]["snapshot_manifest"] = os.path.realpath(os.path.join(base, snap))
         if not self.get("eval_dir"):
             self["eval_dir"] = os.path.join(self["project_root"], "eval")
 

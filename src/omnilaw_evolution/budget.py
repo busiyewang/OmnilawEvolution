@@ -67,3 +67,59 @@ class Budget:
     def _changed(self):
         if self.on_change:
             self.on_change(self.usage)
+
+
+# ------------------------------------------------------------ daily ledger
+DAILY_FIELDS = ("model_calls", "input_tokens", "output_tokens", "download_bytes", "candidates",
+                "sandbox_seconds", "tasks")
+DAILY_LIMITS = {"model_calls": "max_model_calls", "download_bytes": "max_download_bytes",
+                "candidates": "max_candidates", "tasks": "max_tasks"}
+
+
+def today():
+    return time.strftime("%Y-%m-%d")
+
+
+class DailyLedger:
+    """Cross-task usage per calendar day. The worker checks it before claiming
+    work and records each task's usage after; background operation therefore
+    stops at the configured daily limit rather than running unbounded."""
+
+    def __init__(self, db, limits):
+        self.db, self.limits = db, dict(limits or {})
+
+    def row(self, day=None):
+        day = day or today()
+        self.db.execute("INSERT OR IGNORE INTO budget_ledger(day) VALUES (?)", (day,))
+        return self.db.one("SELECT * FROM budget_ledger WHERE day=?", (day,))
+
+    def remaining(self, day=None):
+        r = self.row(day)
+        out = {}
+        for field, key in DAILY_LIMITS.items():
+            if self.limits.get(key) is not None:
+                out[field] = self.limits[key] - (r[field] or 0)
+        return out
+
+    def exhausted(self, day=None):
+        """Name of the first exhausted daily limit, or None."""
+        for field, left in self.remaining(day).items():
+            if left <= 0:
+                return field
+        return None
+
+    def task_limits(self, base):
+        """Per-task budget limits capped by what is left today."""
+        limits = dict(base)
+        left = self.remaining()
+        for field, key in (("model_calls", "max_model_calls"), ("download_bytes", "max_download_bytes"),
+                           ("candidates", "max_candidates")):
+            if field in left:
+                limits[key] = max(0, min(limits.get(key, left[field]), left[field]))
+        return limits
+
+    def record(self, usage, tasks=1, day=None):
+        self.row(day)
+        sets = ", ".join("%s = %s + ?" % (f, f) for f in DAILY_FIELDS)
+        vals = [(usage.get(f) or 0) for f in DAILY_FIELDS[:-1]] + [tasks]
+        self.db.execute("UPDATE budget_ledger SET %s WHERE day=?" % sets, vals + [day or today()])

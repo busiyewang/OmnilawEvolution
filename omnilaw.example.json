@@ -8,8 +8,13 @@
     "api_key_env": "ANTHROPIC_API_KEY",
     "effort": "medium"
   },
-  "executor": {"kind": "template", "claude_cli": "claude"},
-  "sandbox": {"mode": "auto"},
+  "executor": {
+    "kind": "template",
+    "claude_cli": "claude"
+  },
+  "sandbox": {
+    "mode": "auto"
+  },
   "budget": {
     "max_model_calls": 20,
     "max_candidates": 4,
@@ -26,7 +31,62 @@
     "max_ms_per_item": 50.0,
     "require_regression_pass": true
   },
-  "research": {"seed_urls": [], "arxiv_max_results": 3, "github_max_results": 3},
+  "research": {
+    "seed_urls": [],
+    "arxiv_max_results": 3,
+    "github_max_results": 3,
+    "min_relevance": 0.5,
+    "max_ingest_per_task": 3,
+    "cooldown_hours": 72,
+    "positive_terms": [
+      "duplicate",
+      "dedup",
+      "near-duplicate",
+      "similarity",
+      "paraphrase",
+      "去重"
+    ],
+    "negative_terms": [
+      "image",
+      "video",
+      "speech",
+      "audio",
+      "sign",
+      "phishing"
+    ],
+    "snapshot_manifest": null
+  },
+  "failure_topics": {
+    "cross-language": "language-agnostic sentence embedding",
+    "paraphrase": "paraphrase identification"
+  },
+  "queue": {
+    "goal": "减少技术日报中的重复材料，同时保留带有新信息的条目",
+    "auto_shadow_runs": true,
+    "poll_seconds": 60
+  },
+  "daily_budget": {
+    "max_tasks": 50,
+    "max_model_calls": 100,
+    "max_download_bytes": 50000000,
+    "max_candidates": 20
+  },
+  "review_after_days": 30,
+  "chat": {
+    "allowed_users": [],
+    "admins": [],
+    "confirm_ttl_seconds": 600,
+    "feishu": {
+      "verification_token_env": "FEISHU_VERIFICATION_TOKEN",
+      "app_id_env": "FEISHU_APP_ID",
+      "app_secret_env": "FEISHU_APP_SECRET"
+    }
+  },
+  "notify": {
+    "kind": "mock",
+    "webhook_url_env": "FEISHU_WEBHOOK_URL",
+    "webhook_secret_env": "FEISHU_WEBHOOK_SECRET"
+  },
   "auto_apply": false,
   "background": false
 }

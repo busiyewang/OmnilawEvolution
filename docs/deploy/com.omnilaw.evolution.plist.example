@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- macOS launchd example. NOT installed. Replace the paths, then:
+     cp docs/deploy/com.omnilaw.evolution.plist.example ~/Library/LaunchAgents/com.omnilaw.evolution.plist
+     launchctl load ~/Library/LaunchAgents/com.omnilaw.evolution.plist
+     Requires "background": true and a daily_budget in the config, otherwise the daemon refuses to start. -->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.omnilaw.evolution</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/path/to/venv/bin/omnilaw-evolution</string>
+    <string>--config</string><string>/path/to/omnilaw-evolution/omnilaw.json</string>
+    <string>daemon</string>
+  </array>
+  <key>WorkingDirectory</key><string>/path/to/omnilaw-evolution</string>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><dict><key>SuccessfulExit</key><false/></dict>
+  <key>StandardOutPath</key><string>/path/to/omnilaw-evolution/.omnilaw/daemon.log</string>
+  <key>StandardErrorPath</key><string>/path/to/omnilaw-evolution/.omnilaw/daemon.log</string>
+</dict>
+</plist>

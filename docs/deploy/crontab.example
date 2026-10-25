@@ -1,0 +1,3 @@
+# Alternative to the daemon: run one tick + a bounded worker pass every 15 minutes. NOT installed.
+# The daily budget still applies (worker stops when it is used up).
+*/15 * * * * cd /path/to/omnilaw-evolution && /path/to/venv/bin/omnilaw-evolution schedule tick >/dev/null && /path/to/venv/bin/omnilaw-evolution worker --max-tasks 5 >> .omnilaw/worker.log 2>&1

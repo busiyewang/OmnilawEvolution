@@ -10,6 +10,7 @@ Metrics (per split):
 """
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -139,6 +140,69 @@ def run_on_split(cfg, code_root, split, scratch, stop_check=None, timeout=None):
     metrics, per_item = score(rows, payload["decisions"], payload["seconds"])
     result.update(ok=True, metrics=metrics, per_item=per_item, regression={"passed": True, "failures": []})
     return result
+
+
+def module_hash(code_root):
+    """Hash of everything candidate code can import from the package
+    (the collector directory). Two code roots with equal hashes behave the same
+    under the harness."""
+    base = os.path.join(code_root, "src", "omnilaw_evolution", "collector")
+    h = hashlib.sha256()
+    for dirpath, dirs, files in os.walk(base):
+        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        for name in sorted(files):
+            if name.endswith(".pyc"):
+                continue
+            full = os.path.join(dirpath, name)
+            h.update(os.path.relpath(full, base).encode() + b"\0")
+            with open(full, "rb") as f:
+                h.update(_behaviour_bytes(name, f.read()))
+    return h.hexdigest()
+
+
+def _behaviour_bytes(name, data):
+    """Python sources are hashed by their AST without docstrings, so comments
+    and provenance headers (which name the run) do not defeat the cache."""
+    if not name.endswith(".py"):
+        return data
+    try:
+        tree = ast.parse(data)
+    except SyntaxError:
+        return data
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if isinstance(body, list) and body and isinstance(body[0], ast.Expr) \
+                and isinstance(getattr(body[0], "value", None), ast.Constant) and isinstance(body[0].value.value, str):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree).encode()
+
+
+def split_sha(eval_dir, split):
+    with open(os.path.join(eval_dir, "datasets", "dedup", "MANIFEST.json"), encoding="utf-8") as f:
+        return json.load(f)["splits"][split]["sha256"]
+
+
+def cached_run_on_split(db, cfg, code_root, split, scratch, stop_check=None, timeout=None):
+    """``run_on_split`` with an experiment cache. Only deterministic outcomes
+    (scored results and contract failures) are cached; crashes and timeouts
+    are always re-run. A cache hit is not a new exposure of the split."""
+    mh, ev, ss = module_hash(code_root), evaluator_version(cfg["eval_dir"]), split_sha(cfg["eval_dir"], split)
+    key = hashlib.sha256(("%s|%s|%s|%s" % (mh, ev, split, ss)).encode()).hexdigest()
+    row = db.one("SELECT result FROM eval_cache WHERE key=?", (key,))
+    if row:
+        db.execute("UPDATE eval_cache SET hits=hits+1 WHERE key=?", (key,))
+        res = json.loads(row["result"])
+        res.update(cached=True, process_seconds=0.0, cache_key=key[:16])
+        return res
+    res = run_on_split(cfg, code_root, split, scratch, stop_check=stop_check, timeout=timeout)
+    crashed = any(f.startswith("candidate crashed") for f in res["regression"]["failures"])
+    if not crashed:
+        from .db import now
+        db.execute("INSERT OR REPLACE INTO eval_cache(key, module_hash, evaluator_version, split, split_sha, "
+                   "result, created_at) VALUES (?,?,?,?,?,?,?)",
+                   (key, mh, ev, split, ss, json.dumps(res, ensure_ascii=False), now()))
+    res.update(cached=False, cache_key=key[:16])
+    return res
 
 
 def run_unit_tests(cfg, code_root, scratch, stop_check=None, timeout=None):

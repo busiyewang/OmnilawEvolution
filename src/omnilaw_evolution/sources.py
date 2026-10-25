@@ -51,15 +51,16 @@ def html_to_text(raw):
 
 
 class Fetcher:
-    def __init__(self, cfg, budget=None):
+    def __init__(self, cfg, budget=None, fresh=False):
         self.cfg = cfg
         self.budget = budget
+        self.fresh = fresh  # bypass cached responses (knowledge review)
         self.cache_dir = cfg.subdir("cache")
 
     def get(self, url, accept=None):
         key = hashlib.sha256(url.encode()).hexdigest()
         cpath = os.path.join(self.cache_dir, key + ".bin")
-        if os.path.exists(cpath):
+        if os.path.exists(cpath) and not self.fresh:
             with open(cpath, "rb") as f:
                 return f.read()
         fc = self.cfg["fetch"]
@@ -114,7 +115,8 @@ def fetch_github(f, url):
     raw = f.get("https://raw.githubusercontent.com/%s/%s/%s/%s" % (owner, repo, sha, path)).decode("utf-8", "replace")
     return {"kind": "github", "url": "https://github.com/%s/%s/blob/%s/%s" % (owner, repo, sha, path),
             "title": "%s/%s:%s" % (owner, repo, path), "revision": sha, "license": lic,
-            "read_status": "fulltext", "text": raw, "meta": {"repo": "%s/%s" % (owner, repo), "path": path}}
+            "read_status": "fulltext", "text": raw, "meta": {"repo": "%s/%s" % (owner, repo), "path": path,
+                                                         "ref": None if ref == "HEAD" or re.fullmatch(r"[0-9a-f]{40}", ref) else ref}}
 
 
 def fetch_arxiv(f, url):
@@ -205,31 +207,8 @@ def ingest_snapshot(db, cfg, manifest_path):
 
 
 def discover(cfg, topic, budget=None):
-    """Find candidate sources for a topic: arXiv search, GitHub repository
-    search and configured seed URLs. Returns URLs; ingestion is a separate
-    step so the caller can apply its download budget."""
-    f = Fetcher(cfg, budget)
-    q = urllib.parse.quote(topic)
-    found = []
-    try:
-        feed = f.get("https://export.arxiv.org/api/query?search_query=all:%s&max_results=%d"
-                     % (q, cfg["research"]["arxiv_max_results"])).decode("utf-8")
-        ns = {"a": "http://www.w3.org/2005/Atom"}
-        for e in ElementTree.fromstring(feed).findall("a:entry", ns):
-            found.append({"kind": "paper", "url": e.find("a:id", ns).text.strip(),
-                          "title": " ".join(e.find("a:title", ns).text.split())})
-    except Exception as exc:
-        found.append({"kind": "error", "url": "arxiv", "title": str(exc)})
-    try:
-        res = f.get_json("https://api.github.com/search/repositories?q=%s&sort=stars&per_page=%d"
-                         % (q, cfg["research"]["github_max_results"]))
-        for r in res.get("items", []):
-            found.append({"kind": "github", "url": r["html_url"], "title": r["full_name"],
-                          "note": "stars=%s pushed=%s license=%s" % (
-                              r.get("stargazers_count"), r.get("pushed_at"),
-                              (r.get("license") or {}).get("spdx_id"))})
-    except Exception as exc:
-        found.append({"kind": "error", "url": "github", "title": str(exc)})
-    for u in cfg["research"].get("seed_urls", []):
-        found.append({"kind": "web", "url": u, "title": "(configured seed)"})
-    return found
+    """Find candidate sources for a topic (arXiv, GitHub, configured seeds).
+    Kept for the phase-1 ``research`` command; see ``discovery`` for the
+    incremental, relevance-filtered version used by the queue."""
+    from .discovery import LiveProvider
+    return LiveProvider(cfg, budget).search(topic)

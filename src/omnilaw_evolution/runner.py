@@ -239,12 +239,13 @@ class Runner:
         self._guard()
         scratch = os.path.join(self.dir, "eval", "%s-%s" % (label, split))
         try:
-            res = evaluator.run_on_split(self.cfg, code_root, split, scratch, stop_check=self.stop_requested,
-                                         timeout=self._process_timeout())
+            res = evaluator.cached_run_on_split(self.db, self.cfg, code_root, split, scratch,
+                                                stop_check=self.stop_requested, timeout=self._process_timeout())
         except sandbox.SandboxTimeout as exc:
             res = {"split": split, "ok": False, "metrics": None, "per_item": [], "isolation": "n/a",
                    "process_seconds": None, "regression": {"passed": False, "failures": ["timeout: %s" % exc]}}
         self.budget.add(sandbox_seconds=res.get("process_seconds") or 0)
+        os.makedirs(scratch, exist_ok=True)  # a cache hit never created it
         per_item_path = os.path.join(scratch, "per_item.json")
         with open(per_item_path, "w", encoding="utf-8") as f:
             json.dump(res["per_item"], f, ensure_ascii=False, indent=1)
@@ -253,7 +254,10 @@ class Runner:
             "metrics": res["metrics"] or {"error": res["regression"]["failures"]},
             "per_item_path": per_item_path, "runtime_s": res.get("process_seconds"),
             "failures": res["regression"]["failures"], "log_path": os.path.join(scratch, "stderr.txt"),
-            "isolation": res.get("isolation"), "created_at": now()})
+            "isolation": res.get("isolation") + (" (cached)" if res.get("cached") else "")
+            if res.get("isolation") else None, "created_at": now()})
+        if res.get("cached"):
+            self.budget.add(cache_hits=1)
         return res
 
     def evaluate(self):
@@ -269,9 +273,8 @@ class Runner:
             if entry["status"] != "patched" or key in dev:
                 continue
             r = self._eval("v" + key, entry["path"], "dev", entry["sha"])
-            dev[key] = {"metrics": r["metrics"], "regression": r["regression"]}
-            if r["ok"]:
-                self._record_failures(r["per_item"], "dev")
+            dev[key] = {"metrics": r["metrics"], "regression": r["regression"],
+                        "per_item_path": os.path.join(self.dir, "eval", "v%s-dev" % key, "per_item.json")}
             self._save_ck()
         # Select on dev: must pass contract and false-deletion limit; maximise primary metric.
         viable = [(k, v) for k, v in dev.items() if k != "baseline" and v["metrics"]
@@ -293,6 +296,12 @@ class Runner:
         best_key = max(viable, key=lambda kv: (kv[1]["metrics"][crit["primary"]],
                                                -kv[1]["metrics"]["false_deletion_rate"], -int(kv[0])))[0]
         best = patched[best_key]
+        if "dev_failures_recorded" not in self.ck:
+            # Only the selected variant's dev failures are evidence about the current approach.
+            with open(dev[best_key]["per_item_path"], encoding="utf-8") as f:
+                self._record_failures(json.load(f), "dev")
+            self.ck["dev_failures_recorded"] = best_key
+            self._save_ck()
         hold = self.ck.setdefault("holdout", {})
         if "baseline" not in hold:
             self._check_holdout_exposure()
@@ -326,7 +335,8 @@ class Runner:
     def _check_holdout_exposure(self):
         limit = self.cfg["budget"].get("max_holdout_evals_per_day", 40)
         n = self.db.one("SELECT COUNT(*) AS n FROM evaluations WHERE split='holdout' "
-                        "AND created_at >= ?", (time.strftime("%Y-%m-%dT00:00:00"),))["n"]
+                        "AND created_at >= ? AND COALESCE(isolation, '') NOT LIKE '%(cached)'",
+                        (time.strftime("%Y-%m-%dT00:00:00"),))["n"]
         if n + 2 > limit:
             raise RunError("holdout exposure limit reached today (%d/%d); refresh the holdout split or wait"
                            % (n, limit))
@@ -419,14 +429,16 @@ def rollback_release(db, cfg, release_id, to_release_id=None):
 
 def _score_release(db, cfg, release, split):
     scratch = os.path.join(cfg["experiments_dir"], "release-%d" % release["id"], split)
-    res = evaluator.run_on_split(cfg, release["path"], split, scratch)
+    res = evaluator.cached_run_on_split(db, cfg, release["path"], split, scratch)
+    os.makedirs(scratch, exist_ok=True)
     per_item_path = os.path.join(scratch, "per_item.json")
     with open(per_item_path, "w", encoding="utf-8") as f:
         json.dump(res["per_item"], f, ensure_ascii=False, indent=1)
     db.insert("evaluations", {"run_id": None, "variant": "release-%d" % release["id"], "split": split,
                               "code_sha": release["sha"], "metrics": res["metrics"] or {},
                               "per_item_path": per_item_path, "runtime_s": res["process_seconds"],
-                              "failures": res["regression"]["failures"], "isolation": res["isolation"],
+                              "failures": res["regression"]["failures"],
+                              "isolation": res["isolation"] + (" (cached)" if res.get("cached") else ""),
                               "created_at": now()})
     return res
 

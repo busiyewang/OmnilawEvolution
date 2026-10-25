@@ -46,7 +46,8 @@ def build_instance(dest):
         shutil.rmtree(dest)
 
     def ignore(d, names):
-        return [n for n in names if n in SKIP or n.endswith(".pyc")]
+        return [n for n in names if n in SKIP or n.endswith(".pyc") or n.startswith(".demo")
+                or os.path.realpath(os.path.join(d, n)) == os.path.realpath(dest)]
     shutil.copytree(REPO_ROOT, dest, ignore=ignore)
     versions.git(dest, "init", "-q", "-b", "main")
     versions.git(dest, "add", "-A")

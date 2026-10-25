@@ -16,7 +16,7 @@ GOAL = "reduce duplicates, keep new information"
 class Instance:
     """A throwaway demo instance: git repo copy + config + state."""
 
-    def __init__(self, budget=None):
+    def __init__(self, budget=None, extra=None):
         self.tmp = os.path.realpath(tempfile.mkdtemp(prefix="omnilaw-test-"))
         self.root = os.path.join(self.tmp, "instance")
         self.base_sha = build_instance(self.root)
@@ -24,6 +24,7 @@ class Instance:
         data = {"project_root": "instance", "state_dir": "state", "experiments_dir": "experiments"}
         if budget:
             data["budget"] = budget
+        data.update(extra or {})
         write_config(self.cfg_path, data)
         self.cfg = load_config(self.cfg_path)
         self.db = DB(self.cfg.db_path)
@@ -44,6 +45,10 @@ class Instance:
         self.ingest()
         ids, _, _ = self.propose()
         return ids[0], ids[1]
+
+    @property
+    def discovery_manifest(self):
+        return os.path.join(self.root, "fixtures", "discovery", "manifest.json")
 
     def close(self):
         self.db.close()

@@ -17,7 +17,7 @@ import subprocess
 import sys
 
 from . import sandbox
-from .db import SCHEMA_VERSION, now
+from .db import SCHEMA_VERSION, now, schema_compatible
 
 GIT_ID = ["-c", "user.name=omnilaw-evolution", "-c", "user.email=omnilaw-evolution@localhost",
           "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false"]
@@ -167,7 +167,7 @@ def rollback(db, cfg, release_id, to_release_id=None):
     path = ensure_release_tree(cfg, target["sha"])
     checks = {"sha_matches": head_sha(path) == target["sha"],
               "deps_hash_matches": deps_hash(path) == target["deps_hash"],
-              "state_schema_compatible": target["schema_version"] == db.schema_version()}
+              "state_schema_compatible": schema_compatible(target["schema_version"], db.schema_version())}
     health = healthcheck(cfg, path)
     checks["healthy"] = health["healthy"]
     if not all(checks.values()):

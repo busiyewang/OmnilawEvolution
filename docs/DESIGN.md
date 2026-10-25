@@ -1,6 +1,6 @@
 # Omnilaw Evolution — 设计与选型
 
-版本 0.1.0（第一阶段），2026-10-25。
+版本 0.1.0（第一阶段），2026-10-25。第二阶段（0.2.0）的设计见 [PHASE2.md](PHASE2.md)。
 
 ## 1. 目标机器（本次开发实际环境）
 
@@ -64,9 +64,20 @@ src/omnilaw_evolution/
   runner.py      状态机、检查点、停止、恢复、预算、同目标互斥锁
   report.py      Markdown 报告
   collector/     被进化的真实模块：pipeline.py（技术日报）调用 dedup.py
+
+  # 第二阶段（详见 docs/PHASE2.md）
+  taskqueue.py   任务队列（原子领取、重试、取消、去重键）+ 五字段 cron 调度
+  worker.py      任务处理器、每日预算门控、通知、失败驱动研究、守护进程
+  discovery.py   增量来源发现（已见记录、相关性打分、积压）；实时与快照两种提供者
+  review.py      知识复查（修订号 / 分支 / 版本），新旧来源并存
+  chat.py        渠道无关的聊天命令、权限、一次性确认码、反馈标注
+  notify.py      outbox + mock / stdout / 飞书 webhook
+  adapters/feishu.py  飞书事件回调与回复
 ```
 
-数据：SQLite（sources / knowledge / proposals / runs / events / evaluations / releases / failures），文件保存来源快照、
+数据：SQLite（sources / knowledge / proposals / runs / events / evaluations / releases / failures；
+第二阶段 schema v2 以纯新增方式加入 tasks / schedules / discoveries / feedback / budget_ledger / eval_cache /
+outbox / chat_confirmations / chat_events，旧版本记录的发布仍可回滚），文件保存来源快照、
 补丁、逐样例结果、日志；Git 保存版本（候选分支 `omnilaw/run-<id>-v<n>`）。
 
 ## 5. 隔离与安全边界

@@ -1,6 +1,6 @@
 # Omnilaw Evolution
 
-> 融汇万法，持续进化 —— 面向个人使用的自演化研究 Agent（第一阶段）
+> 融汇万法，持续进化 —— 面向个人使用的自演化研究 Agent（第一、二阶段）
 
 Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方法写成**带出处的知识记录**，据此提出改进假设，
 在**独立 checkout + 操作系统沙箱**中修改自己实际使用的源码模块，用**固定评测器**比较基线与候选，
@@ -17,8 +17,15 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 | 改进规划、重复实验抑制、未覆盖失败 → 开放问题 | ✅ 已实现并运行（离线模拟规划） |
 | 候选生成 → 范围守卫 → 沙箱评测 → 采用决策 → 发布 → 健康检查 → 回滚 | ✅ 已实现并运行 |
 | 停止、超时、预算耗尽、断点恢复（累计预算）、同目标互斥 | ✅ 已实现并运行 |
+| **第二阶段**：任务队列；用户、定时、失败记录、任务链四种触发 | ✅ 已实现并运行（见 `reports/demo2/DEMO2_REPORT.md`） |
+| 增量来源发现、三层重复研究抑制、评测缓存、每日预算账本 | ✅ 已实现并运行；增量检索已真实联网运行 |
+| 知识复查（Wikipedia 修订号 / GitHub 分支 / arXiv 版本） | ✅ 已实现；真实联网复查已运行 |
+| 聊天命令（中英文，权限 + 一次性确认码）、反馈标注、通知 outbox | ✅ 已实现并运行 |
+| 飞书事件回调与 webhook 推送 | ⚠️ 已实现，仅对本机模拟服务测试，**未连接真实飞书** |
+| 后台守护进程 | ⚠️ 已实现，默认拒绝启动；部署示例在 `docs/deploy/`，**未安装** |
 | Claude 模型适配器（官方 `anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现，**未实际运行**（本机无凭据，也未获付费授权） |
-| 定时/后台运行、Hermes/飞书适配、自动采用 | ⏳ 第二、三阶段；默认关闭 |
+| 语义 / 跨语言去重 | ❌ 已研究到相关方法（摘要级），但需要新依赖和模型执行器，系统标记为“受阻”等待决策 |
+| 自动采用 | ⏳ 第三阶段；默认关闭 |
 
 演示用的是**离线模拟模型**（模式匹配 + 固定规划）和**模板执行器**（代码来自 `templates.py`，不是模型写的），
 数据是**虚构的小规模标注集**。演示证明的是闭环机制可靠运行，不是通用去重能力的提升。
@@ -32,12 +39,16 @@ git clone git@github.com:busiyewang/OmnilawEvolution.git omnilaw-evolution
 cd omnilaw-evolution
 python3 -m pip install -e .          # 或者不安装，用 PYTHONPATH=src python3 -m omnilaw_evolution ...
 
-# 测试（约 25 秒，全部离线）
+# 测试（约 40 秒，全部离线）
 PYTHONPATH=src python3 -m unittest discover -s tests
 
-# 完整演示：在 .demo/ 里新建演示实例，跑完整闭环，报告写到 reports/demo/
+# 第一阶段演示：在 .demo/ 里新建演示实例，跑完整闭环，报告写到 reports/demo/
 omnilaw-evolution demo --workdir .demo --report-out reports/demo          # 末尾含真实联网检查
 omnilaw-evolution demo --workdir .demo --offline                          # 完全离线
+
+# 第二阶段演示：队列 + 定时 + 失败驱动研究 + 抑制 + 缓存 + 聊天（模拟飞书事件）
+omnilaw-evolution demo2 --workdir .demo2 --report-out reports/demo2       # 末尾含真实联网检索与复查
+omnilaw-evolution demo2 --workdir .demo2 --offline
 ```
 
 演示会从当前源码树复制出一个新的 git 仓库作为“演示实例”，所有发布与回滚都发生在演示实例里，
@@ -66,6 +77,26 @@ omnilaw-evolution rollback --release 2                # 校验 SHA、依赖哈�
 
 运行状态：`QUEUED → RESEARCHING → PLANNED → PATCHING → EVALUATING → READY | REJECTED`，
 `READY → APPLIED → ROLLED_BACK`，任一执行阶段可进入 `FAILED / CANCELLED / BUDGET_EXHAUSTED`（可恢复）。
+
+### 持续研究（第二阶段）
+
+```bash
+omnilaw-evolution queue add --kind research --topic "paraphrase identification"
+omnilaw-evolution queue list
+omnilaw-evolution schedule add --name daily-check --cron "0 8 * * *" --kind evaluate_release --payload '{"split":"batch2"}'
+omnilaw-evolution schedule add --name weekly-review --cron "0 9 * * 1" --kind knowledge_review
+omnilaw-evolution schedule tick                       # 把到期的定时任务放入队列
+omnilaw-evolution worker --max-tasks 10               # 在今日预算内消化队列
+omnilaw-evolution chat "状态"                          # 本地聊天（与飞书同一套命令）；不带参数进入交互模式
+omnilaw-evolution feedback --item b02 --duplicate-of b01
+omnilaw-evolution review --limit 5                    # 知识复查（联网）
+omnilaw-evolution budget                              # 今日用量与剩余
+omnilaw-evolution outbox                              # 通知记录
+omnilaw-evolution serve-feishu --port 8787            # 飞书事件回调（接入步骤见 docs/PHASE2.md）
+omnilaw-evolution daemon                              # 后台循环：需 background=true 且设置每日预算
+```
+
+触发、抑制、缓存、复查、权限与飞书接入的说明见 [`docs/PHASE2.md`](docs/PHASE2.md)。
 
 ### 使用真实模型（未在本机验证）
 
@@ -104,9 +135,13 @@ eval/                    受保护的评测数据（dev / holdout / batch2 + MAN
 fixtures/sources/        三类来源的固定快照 + 一个对抗性注入页面
 fixtures/batches/        日报输入快照
 scripts/build_datasets.py  标注数据生成脚本（全部虚构）
-tests/                   48 个测试（单元 + 端到端 + 红队）
-reports/demo/            一次实际演示的完整产物：报告、补丁、日报、来源与知识记录
+fixtures/discovery/      录制的 arXiv 检索结果（摘要级），用于离线回放增量发现
+tests/                   78 个测试（单元 + 端到端 + 红队 + 第二阶段流程）
+reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
+reports/demo2/           第二阶段演示报告（中文）
 docs/DESIGN.md           环境核对、参考项目核对与选型、架构、隔离设计、已知局限
+docs/PHASE2.md           第二阶段：触发、抑制、缓存、复查、预算、聊天与飞书接入
+docs/deploy/             launchd / systemd / crontab 示例（未安装）
 ```
 
 ## 许可证

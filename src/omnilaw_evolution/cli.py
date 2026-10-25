@@ -178,8 +178,119 @@ def cmd_demo(args):
     run_demo(args.workdir, report_out=args.report_out, live=not args.offline)
 
 
+# ------------------------------------------------------------ phase 2
+def cmd_queue(args):
+    from . import taskqueue
+    cfg, db = _ctx(args)
+    if args.action == "list":
+        _print({"summary": taskqueue.summary(db), "tasks": taskqueue.listing(db, args.limit, args.status)})
+    elif args.action == "cancel":
+        _print({"task": args.task, "result": taskqueue.cancel(db, args.task)})
+    else:
+        payload = json.loads(args.payload) if args.payload else {}
+        if args.topic:
+            payload["topic"] = args.topic
+        tid, created = taskqueue.enqueue(db, args.kind, payload, origin="cli", priority=args.priority)
+        _print({"task": tid, "created": created})
+
+
+def cmd_worker(args):
+    from .worker import Worker
+    cfg, db = _ctx(args)
+    out = Worker(db, cfg, offline=args.offline).run(max_tasks=args.max_tasks)
+    _print(out)
+
+
+def cmd_daemon(args):
+    from .worker import DaemonRefused, daemon
+    cfg, db = _ctx(args)
+    try:
+        cycles = daemon(db, cfg, max_cycles=args.cycles)
+    except DaemonRefused as exc:
+        sys.exit("refused: %s" % exc)
+    _print({"cycles": cycles})
+
+
+def cmd_schedule(args):
+    from . import taskqueue
+    cfg, db = _ctx(args)
+    if args.action == "add":
+        sid = taskqueue.add_schedule(db, args.name, args.cron, args.kind,
+                                     json.loads(args.payload) if args.payload else {})
+        _print({"schedule": sid})
+    elif args.action == "remove":
+        db.execute("DELETE FROM schedules WHERE name=?", (args.name,))
+        _print({"removed": args.name})
+    elif args.action == "tick":
+        _print({"fired": taskqueue.tick(db)})
+    else:
+        _print(db.all("SELECT id, name, cron, kind, payload, enabled, last_fired_at FROM schedules ORDER BY id"))
+
+
+def cmd_chat(args):
+    from .chat import ChatRouter
+    cfg, db = _ctx(args)
+    router = ChatRouter(db, cfg)
+    if args.text:
+        print(router.handle(args.user, " ".join(args.text), channel="cli" if args.user == "local" else "test"))
+        return
+    print("omnilaw chat — 输入“帮助”查看命令，Ctrl-D 退出")
+    for line in sys.stdin:
+        if line.strip():
+            print(router.handle(args.user, line, channel="cli"))
+
+
+def cmd_feedback(args):
+    from .chat import ChatRouter
+    cfg, db = _ctx(args)
+    router = ChatRouter(db, cfg)
+    if args.item and args.duplicate_of:
+        print(router.handle("local", "dup %s %s" % (args.item, args.duplicate_of)))
+    elif args.item and args.keep:
+        print(router.handle("local", "keep %s" % args.item))
+    else:
+        print(router.handle("local", "feedback " + (args.text or "")))
+
+
+def cmd_review(args):
+    from .review import review_sources
+    cfg, db = _ctx(args)
+    _print(review_sources(db, cfg, Budget(cfg["budget"]), limit=args.limit, older_than_days=args.older_than_days,
+                          offline=args.offline))
+
+
+def cmd_budget(args):
+    from .budget import DailyLedger
+    cfg, db = _ctx(args)
+    ledger = DailyLedger(db, cfg["daily_budget"])
+    _print({"today": ledger.row(), "remaining": ledger.remaining(),
+            "history": db.all("SELECT * FROM budget_ledger ORDER BY day DESC LIMIT 14")})
+
+
+def cmd_outbox(args):
+    cfg, db = _ctx(args)
+    _print(db.all("SELECT id, channel, status, text, error, created_at FROM outbox ORDER BY id DESC LIMIT ?",
+                  (args.limit,)))
+
+
+def cmd_serve_feishu(args):
+    from .adapters.feishu import make_server
+    cfg, db = _ctx(args)
+    srv = make_server(cfg, args.host, args.port)
+    print("feishu event endpoint: http://%s:%d/feishu/events" % (args.host, args.port), file=sys.stderr)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+def cmd_demo2(args):
+    from .demo2 import run_demo2
+    run_demo2(args.workdir, report_out=args.report_out, live=not args.offline)
+
+
 def build_parser():
-    ap = argparse.ArgumentParser(prog="omnilaw-evolution", description="Self-evolving research agent (phase 1)")
+    ap = argparse.ArgumentParser(prog="omnilaw-evolution", description="Self-evolving research agent (phases 1-2)")
     ap.add_argument("--config", help="config file (default $OMNILAW_CONFIG or ./omnilaw.json)")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -230,6 +341,50 @@ def build_parser():
     p.add_argument("--workdir", required=True)
     p.add_argument("--report-out")
     p.add_argument("--offline", action="store_true", help="skip the live fetch check")
+
+    from .taskqueue import KINDS
+    p = add("queue", cmd_queue, "task queue: add / list / cancel")
+    p.add_argument("action", choices=["add", "list", "cancel"])
+    p.add_argument("--kind", choices=KINDS, default="research")
+    p.add_argument("--topic")
+    p.add_argument("--payload", help="JSON payload")
+    p.add_argument("--priority", type=int, default=50)
+    p.add_argument("--task", type=int)
+    p.add_argument("--status")
+    p.add_argument("--limit", type=int, default=20)
+    p = add("worker", cmd_worker, "process queued tasks within today's budget")
+    p.add_argument("--max-tasks", type=int)
+    p.add_argument("--offline", action="store_true", help="knowledge review does not fetch")
+    p = add("daemon", cmd_daemon, "background loop (needs background=true and a daily budget)")
+    p.add_argument("--cycles", type=int, help="stop after N cycles (default: until SIGTERM)")
+    p = add("schedule", cmd_schedule, "cron schedules: add / list / remove / tick")
+    p.add_argument("action", choices=["add", "list", "remove", "tick"])
+    p.add_argument("--name")
+    p.add_argument("--cron", help='five fields, e.g. "0 8 * * *"')
+    p.add_argument("--kind", choices=KINDS)
+    p.add_argument("--payload", help="JSON payload")
+    p = add("chat", cmd_chat, "chat commands locally (one-shot or REPL)")
+    p.add_argument("text", nargs="*")
+    p.add_argument("--user", default="local")
+    p = add("feedback", cmd_feedback, "record feedback or label an item")
+    p.add_argument("--text")
+    p.add_argument("--item")
+    p.add_argument("--duplicate-of")
+    p.add_argument("--keep", action="store_true")
+    p = add("review", cmd_review, "re-check sources and mark knowledge whose source changed")
+    p.add_argument("--limit", type=int, default=5)
+    p.add_argument("--older-than-days", type=int)
+    p.add_argument("--offline", action="store_true")
+    add("budget", cmd_budget, "show today's ledger and remaining daily budget")
+    p = add("outbox", cmd_outbox, "show recent notifications")
+    p.add_argument("--limit", type=int, default=20)
+    p = add("serve-feishu", cmd_serve_feishu, "run the Feishu event-callback endpoint")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8787)
+    p = add("demo2", cmd_demo2, "phase-2 walkthrough: queue, triggers, suppression, cache, chat")
+    p.add_argument("--workdir", required=True)
+    p.add_argument("--report-out")
+    p.add_argument("--offline", action="store_true")
     return ap
 
 
@@ -237,7 +392,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
         args.fn(args)
-    except (runner.RunError, ValueError, RuntimeError) as exc:
+    except (runner.RunError, ValueError, RuntimeError, LookupError) as exc:
         sys.exit("error: %s" % exc)
     return 0
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "omnilaw-evolution"
-version = "0.1.0"
+version = "0.2.0"
 description = "A personal self-evolving research agent: read sources, propose cited changes to its own code, evaluate in isolation, adopt or reject, roll back."
 readme = "README.md"
 requires-python = ">=3.9"

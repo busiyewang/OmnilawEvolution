@@ -14,6 +14,9 @@ from .db import loads, now
 
 VERIFICATION_LEVELS = ("source_claim", "local_repro_pass", "local_repro_fail", "effective_in_user_task")
 
+# Methods for which a code template exists (TemplateExecutor can implement them).
+TEMPLATED_METHODS = ("url_canonicalization", "shingle_jaccard", "title_token_overlap")
+
 # Methods the offline extractor recognises. With a real model adapter the model
 # fills these fields from the text instead; the catalogue is the mock's "reading".
 METHOD_CATALOG = {
@@ -55,6 +58,45 @@ METHOD_CATALOG = {
         "limitations": "Adds estimation error and a dependency; daily batches here are small, so exact "
                        "Jaccard is used instead. Recorded as not applicable at the current scale.",
         "applicable": False,
+    },
+    "semantic_embedding": {
+        "patterns": [r"(sentence embeddings?|bi-encoder|dual encoder)", r"semantic (textual )?similarity"],
+        "min_hits": 2,
+        "claim": "Dense sentence embeddings place paraphrases close together, so cosine similarity between "
+                 "embeddings detects rewritten copies that share few surface n-grams.",
+        "steps": "Encode title+text with a pretrained sentence encoder; compare a new item with kept items by "
+                 "cosine similarity; treat pairs above a tuned threshold as duplicates.",
+        "conditions": "Needs a pretrained encoder model and an ML runtime (e.g. PyTorch/ONNX); threshold tuned "
+                      "on labelled pairs from the target feed.",
+        "limitations": "Adds a large dependency and model download; same-topic different-event items can also "
+                       "embed closely, so false deletions must be measured. Not implementable with the stdlib "
+                       "template executor; the dependency change touches protected pyproject.toml.",
+        "applicable": True,
+    },
+    "cross_lingual_embedding": {
+        "patterns": [r"(cross-lingual|multilingual|language-agnostic)", r"sentence embeddings?"],
+        "min_hits": 2,
+        "claim": "Language-agnostic sentence embeddings map translations of the same text to nearby vectors, "
+                 "enabling duplicate detection across languages.",
+        "steps": "Encode items with a multilingual sentence encoder; compare across languages by cosine "
+                 "similarity; use a separate (usually stricter) threshold for cross-language pairs.",
+        "conditions": "Needs a multilingual encoder model and ML runtime; language pairs present in the feed "
+                      "(here zh/en) must be covered by the model.",
+        "limitations": "Same dependency issue as semantic_embedding; quality varies by language pair; "
+                       "abstract-level reading only, method details unverified.",
+        "applicable": True,
+    },
+    "paraphrase_classifier": {
+        "patterns": [r"[Pp]araphrase identification", r"(cross-encoder|classif|deep learning|neural|datasets?)"],
+        "min_hits": 2,
+        "claim": "Supervised paraphrase identification models (cross-encoders or bi-encoders) decide whether "
+                 "two texts express the same content.",
+        "steps": "Train or reuse a pair classifier on paraphrase data; score candidate pairs (e.g. those "
+                 "pre-filtered by n-gram similarity); remove when the classifier is confident.",
+        "conditions": "Needs labelled pairs and a trained model; pairwise scoring cost grows with batch size.",
+        "limitations": "Training data domain may not match news; heavy dependency; not implementable with "
+                       "the template executor.",
+        "applicable": True,
     },
     "exact_substring": {
         "patterns": [r"suffix array", r"[Ee]xact[Ss]ubstr|exact substring"],

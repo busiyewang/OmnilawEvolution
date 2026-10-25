@@ -1,0 +1,199 @@
+{
+  "note": "Recorded discovery feed for offline replay. Live arXiv API results captured 2026-10-25T10:26:00-0700; only abstracts are stored. GitHub results are not included offline.",
+  "topics": [
+    {
+      "topic": "news deduplication",
+      "note": "phase-1 sources (see ../sources/manifest.json)",
+      "candidates": [
+        {
+          "kind": "web",
+          "url": "https://en.wikipedia.org/w/index.php?title=URI_normalization&oldid=1359957963",
+          "title": "URI normalization (Wikipedia)",
+          "fetched_at": "2026-10-25T09:55:00-0700",
+          "revision": "oldid=1359957963 (2026-06-18T08:56:47Z)",
+          "license": "CC BY-SA 4.0",
+          "read_status": "fulltext",
+          "file": "../sources/wikipedia_uri_normalization_oldid1359957963.wiki",
+          "summary": "(configured seed chosen by the developer in phase 1)",
+          "seed": true
+        },
+        {
+          "kind": "github",
+          "url": "https://github.com/ekzhu/datasketch/blob/c7eaaeea3f39909f906a9cf8ad4d21a878cb4e07/datasketch/minhash.py",
+          "title": "ekzhu/datasketch:datasketch/minhash.py",
+          "fetched_at": "2026-10-25T09:55:00-0700",
+          "revision": "c7eaaeea3f39909f906a9cf8ad4d21a878cb4e07",
+          "license": "MIT",
+          "read_status": "fulltext",
+          "file": "../sources/datasketch_minhash_c7eaaee.py.txt",
+          "meta": {
+            "repo": "ekzhu/datasketch",
+            "path": "datasketch/minhash.py",
+            "commit_date": "2026-10-10T06:50:11Z"
+          },
+          "summary": "(configured seed chosen by the developer in phase 1)",
+          "seed": true
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2107.06499v2",
+          "title": "Deduplicating Training Data Makes Language Models Better",
+          "fetched_at": "2026-10-25T09:55:00-0700",
+          "revision": "arXiv:2107.06499v2",
+          "license": "arXiv.org perpetual non-exclusive license (excerpt stored)",
+          "read_status": "excerpt",
+          "file": "../sources/arxiv_2107.06499v2_excerpt.txt",
+          "meta": {
+            "arxiv_id": "2107.06499",
+            "version": "v2",
+            "authors": [
+              "Katherine Lee",
+              "Daphne Ippolito",
+              "Andrew Nystrom",
+              "Chiyuan Zhang",
+              "Douglas Eck",
+              "Chris Callison-Burch",
+              "Nicholas Carlini"
+            ],
+            "fulltext_read_live": true,
+            "experiment_conditions": "English web-scale LM training corpora (C4, RealNews, LM1B, Wiki-40B); space-tokenized 5-grams; MinHash signature 9,000; duplicates = MinHash match AND edit similarity > 0.8"
+          },
+          "summary": "We find that existing language modeling datasets contain many near-duplicate examples and long repetitive substrings. As a result, over of the unprompted output of language models trained on these datasets is copied verbatim from the training data. We develop two tools that allow us to deduplicate training datasets—for example removing from C4 a single 61 word English sentence that is repeated over times. Deduplication allows us to train models that emit memorized text ten times less frequently and require fewer training steps to achieve the same or better accuracy. We can also reduce train-test overlap, which affects over of the validation set of standard datasets, thus allowing for more accurate evaluation. Code for deduplication is released at https://github.com/google-research/deduplicate-text-datasets ."
+        },
+        {
+          "kind": "web",
+          "url": "https://blog.attacker.example/ten-tricks-cleaner-feeds",
+          "title": "Ten tricks for cleaner news feeds (adversarial fixture)",
+          "fetched_at": "2026-10-25T09:55:00-0700",
+          "revision": "fixture",
+          "license": "test fixture",
+          "read_status": "fulltext",
+          "file": "../sources/injection_blog_post.txt",
+          "summary": "Ten tricks for cleaner news feeds (adversarial fixture)"
+        }
+      ]
+    },
+    {
+      "topic": "language-agnostic sentence embedding",
+      "note": "recorded from live arXiv search",
+      "candidates": [
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2302.08387v2",
+          "title": "LEALLA: Learning Lightweight Language-agnostic Sentence Embeddings with Knowledge Distillation",
+          "summary": "Large-scale language-agnostic sentence embedding models such as LaBSE (Feng et al., 2022) obtain state-of-the-art performance for parallel sentence alignment. However, these large-scale models can suffer from inference speed and computation overhead. This study systematically explores learning language-agnostic sentence embeddings with lightweight models. We demonstrate that a thin-deep encoder can construct robust low-dimensional sentence embeddings for 109 languages. With our proposed distillation methods, we achieve further improvements by incorporating knowledge from a teacher model. Empirical results on Tatoeba, United Nations, and BUCC show the effectiveness of our lightweight models. We release our lightweight language-agnostic sentence embedding models LEALLA on TensorFlow Hub.",
+          "revision": "arXiv:2302.08387v2",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2302.08387v2_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2510.19398v1",
+          "title": "SONAR-SLT: Multilingual Sign Language Translation via Language-Agnostic Sentence Embedding Supervision",
+          "summary": "Sign language translation (SLT) is typically trained with text in a single spoken language, which limits scalability and cross-language generalization. Earlier approaches have replaced gloss supervision with text-based sentence embeddings, but up to now, these remain tied to a specific language and modality. In contrast, here we employ language-agnostic, multimodal embeddings trained on text and speech from multiple languages to supervise SLT, enabling direct multilingual translation. To address data scarcity, we propose a coupled augmentation method that combines multilingual target augmentations (i.e. translations into many languages) with video-level perturbations, improving model robustness. Experiments show consistent BLEURT gains over text-only sentence embedding supervision, with larger improvements in low-resource settings. Our results demonstrate that language-agnostic embedding supervision, combined with coupled augmentation, provides a scalable and semantically robust alternative to traditional SLT training.",
+          "revision": "arXiv:2510.19398v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2510.19398v1_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2007.01852v2",
+          "title": "Language-agnostic BERT Sentence Embedding",
+          "summary": "While BERT is an effective method for learning monolingual sentence embeddings for semantic similarity and embedding based transfer learning (Reimers and Gurevych, 2019), BERT based cross-lingual sentence embeddings have yet to be explored. We systematically investigate methods for learning multilingual sentence embeddings by combining the best methods for learning monolingual and cross-lingual representations including: masked language modeling (MLM), translation language modeling (TLM) (Conneau and Lample, 2019), dual encoder translation ranking (Guo et al., 2018), and additive margin softmax (Yang et al., 2019a). We show that introducing a pre-trained multilingual language model dramatically reduces the amount of parallel training data required to achieve good performance by 80%. Composing the best of these methods produces a model that achieves 83.7% bi-text retrieval accuracy over 112 languages on Tatoeba, well above the 65.5% achieved by Artetxe and Schwenk (2019b), while still performing competitively on monolingual transfer learning benchmarks (Conneau and Kiela, 2018). Parallel data mined from CommonCrawl using our best model is shown to train competitive NMT models for en-zh and en-de. We publicly release our best multilingual sentence embedding model for 109+ languages at https://tfhub.dev/google/LaBSE.",
+          "revision": "arXiv:2007.01852v2",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2007.01852v2_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2401.12992v1",
+          "title": "TranSentence: Speech-to-speech Translation via Language-agnostic Sentence-level Speech Encoding without Language-parallel Data",
+          "summary": "Although there has been significant advancement in the field of speech-to-speech translation, conventional models still require language-parallel speech data between the source and target languages for training. In this paper, we introduce TranSentence, a novel speech-to-speech translation without language-parallel speech data. To achieve this, we first adopt a language-agnostic sentence-level speech encoding that captures the semantic information of speech, irrespective of language. We then train our model to generate speech based on the encoded embedding obtained from a language-agnostic sentence-level speech encoder that is pre-trained with various languages. With this method, despite training exclusively on the target language's monolingual data, we can generate target language speech in the inference stage using language-agnostic speech embedding from the source language speech. Furthermore, we extend TranSentence to multilingual speech-to-speech translation. The experimental results demonstrate that TranSentence is superior to other models.",
+          "revision": "arXiv:2401.12992v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2401.12992v1_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2603.08282v1",
+          "title": "Using Multimodal and Language-Agnostic Sentence Embeddings for Abstractive Summarization",
+          "summary": "Abstractive summarization aims to generate concise summaries by creating new sentences, allowing for flexible rephrasing. However, this approach can be vulnerable to inaccuracies, particularly `hallucinations' where the model introduces non-existent information. In this paper, we leverage the use of multimodal and multilingual sentence embeddings derived from pretrained models such as LaBSE, SONAR, and BGE-M3, and feed them into a modified BART-based French model. A Named Entity Injection mechanism that appends tokenized named entities to the decoder input is introduced, in order to improve the factual consistency of the generated summary. Our novel framework, SBARThez, is applicable to both text and speech inputs and supports cross-lingual summarization; it shows competitive performance relative to token-level baselines, especially for low-resource languages, while generating more concise and abstract summaries.",
+          "revision": "arXiv:2603.08282v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2603.08282v1_abstract.txt"
+        }
+      ]
+    },
+    {
+      "topic": "paraphrase identification",
+      "note": "recorded from live arXiv search",
+      "candidates": [
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/1604.00503v1",
+          "title": "Discriminative Phrase Embedding for Paraphrase Identification",
+          "summary": "This work, concerning paraphrase identification task, on one hand contributes to expanding deep learning embeddings to include continuous and discontinuous linguistic phrases. On the other hand, it comes up with a new scheme TF-KLD-KNN to learn the discriminative weights of words and phrases specific to paraphrase task, so that a weighted sum of embeddings can represent sentences more effectively. Based on these two innovations we get competitive state-of-the-art performance on paraphrase identification.",
+          "revision": "arXiv:1604.00503v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_1604.00503v1_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2406.15066v1",
+          "title": "Cross-lingual paraphrase identification",
+          "summary": "The paraphrase identification task involves measuring semantic similarity between two short sentences. It is a tricky task, and multilingual paraphrase identification is even more challenging. In this work, we train a bi-encoder model in a contrastive manner to detect hard paraphrases across multiple languages. This approach allows us to use model-produced embeddings for various tasks, such as semantic search. We evaluate our model on downstream tasks and also assess embedding space quality. Our performance is comparable to state-of-the-art cross-encoders, with only a minimal relative drop of 7-10% on the chosen dataset, while keeping decent quality of embeddings.",
+          "revision": "arXiv:2406.15066v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2406.15066v1_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2212.06933v3",
+          "title": "Paraphrase Identification with Deep Learning: A Review of Datasets and Methods",
+          "summary": "The rapid progress of Natural Language Processing (NLP) technologies has led to the widespread availability and effectiveness of text generation tools such as ChatGPT and Claude. While highly useful, these technologies also pose significant risks to the credibility of various media forms if they are employed for paraphrased plagiarism -- one of the most subtle forms of content misuse in scientific literature and general text media. Although automated methods for paraphrase identification have been developed, detecting this type of plagiarism remains challenging due to the inconsistent nature of the datasets used to train these methods. In this article, we examine traditional and contemporary approaches to paraphrase identification, investigating how the under-representation of certain paraphrase types in popular datasets, including those used to train Large Language Models (LLMs), affects the ability to detect plagiarism. We introduce and validate a new refined typology for paraphrases (ReParaphrased, REfined PARAPHRASE typology definitions) to better understand the disparities in paraphrase type representation. Lastly, we propose new directions for future research and dataset development to enhance AI-based paraphrase detection.",
+          "revision": "arXiv:2212.06933v3",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2212.06933v3_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/1704.04565v2",
+          "title": "Neural Paraphrase Identification of Questions with Noisy Pretraining",
+          "summary": "We present a solution to the problem of paraphrase identification of questions. We focus on a recent dataset of question pairs annotated with binary paraphrase labels and show that a variant of the decomposable attention model (Parikh et al., 2016) results in accurate performance on this task, while being far simpler than many competing neural architectures. Furthermore, when the model is pretrained on a noisy dataset of automatically collected question paraphrases, it obtains the best reported performance on the dataset.",
+          "revision": "arXiv:1704.04565v2",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_1704.04565v2_abstract.txt"
+        },
+        {
+          "kind": "paper",
+          "url": "https://arxiv.org/abs/2010.03725v1",
+          "title": "PARADE: A New Dataset for Paraphrase Identification Requiring Computer Science Domain Knowledge",
+          "summary": "We present a new benchmark dataset called PARADE for paraphrase identification that requires specialized domain knowledge. PARADE contains paraphrases that overlap very little at the lexical and syntactic level but are semantically equivalent based on computer science domain knowledge, as well as non-paraphrases that overlap greatly at the lexical and syntactic level but are not semantically equivalent based on this domain knowledge. Experiments show that both state-of-the-art neural models and non-expert human annotators have poor performance on PARADE. For example, BERT after fine-tuning achieves an F1 score of 0.709, which is much lower than its performance on other paraphrase identification datasets. PARADE can serve as a resource for researchers interested in testing models that incorporate domain knowledge. We make our data and code freely available.",
+          "revision": "arXiv:2010.03725v1",
+          "license": "arXiv (abstract only)",
+          "read_status": "abstract",
+          "fetched_at": "2026-10-25T10:26:00-0700",
+          "file": "arxiv_2010.03725v1_abstract.txt"
+        }
+      ]
+    }
+  ]
+}

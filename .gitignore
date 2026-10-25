@@ -5,6 +5,6 @@ build/
 dist/
 .venv/
 .omnilaw/
-.demo/
+.demo*/
 omnilaw.json
 .DS_Store

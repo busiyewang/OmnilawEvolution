@@ -1,0 +1,15 @@
+# systemd user unit example. NOT installed. Replace paths, then:
+#   cp docs/deploy/omnilaw-evolution.service.example ~/.config/systemd/user/omnilaw-evolution.service
+#   systemctl --user daemon-reload && systemctl --user enable --now omnilaw-evolution
+# Requires "background": true and a daily_budget in the config.
+[Unit]
+Description=Omnilaw Evolution research daemon
+
+[Service]
+WorkingDirectory=/path/to/omnilaw-evolution
+ExecStart=/path/to/venv/bin/omnilaw-evolution --config /path/to/omnilaw-evolution/omnilaw.json daemon
+Restart=on-failure
+# Credentials by reference only, e.g. EnvironmentFile=%h/.config/omnilaw/env (chmod 600)
+
+[Install]
+WantedBy=default.target

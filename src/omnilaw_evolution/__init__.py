@@ -1,3 +1,3 @@
-"""Omnilaw Evolution — a personal self-evolving research agent (phase 1)."""
+"""Omnilaw Evolution — a personal self-evolving research agent (phases 1-2)."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
