@@ -1,6 +1,6 @@
 # Omnilaw Evolution
 
-> 融汇万法，持续进化 —— 面向个人使用的自演化研究 Agent（第一、二阶段）
+> 融汇万法，持续进化 —— 面向个人使用的自演化研究 Agent（第一、二阶段 + 真实能力接入 0.3.0）
 
 Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方法写成**带出处的知识记录**，据此提出改进假设，
 在**独立 checkout + 操作系统沙箱**中修改自己实际使用的源码模块，用**固定评测器**比较基线与候选，
@@ -21,10 +21,11 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 | 增量来源发现、三层重复研究抑制、评测缓存、每日预算账本 | ✅ 已实现并运行；增量检索已真实联网运行 |
 | 知识复查（Wikipedia 修订号 / GitHub 分支 / arXiv 版本） | ✅ 已实现；真实联网复查已运行 |
 | 聊天命令（中英文，权限 + 一次性确认码）、反馈标注、通知 outbox | ✅ 已实现并运行 |
-| 飞书事件回调与 webhook 推送 | ⚠️ 已实现，仅对本机模拟服务测试，**未连接真实飞书** |
-| 后台守护进程 | ⚠️ 已实现，默认拒绝启动；部署示例在 `docs/deploy/`，**未安装** |
-| Claude 模型适配器（官方 `anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现，**未实际运行**（本机无凭据，也未获付费授权） |
-| 语义 / 跨语言去重 | ❌ 已研究到相关方法（摘要级），但需要新依赖和模型执行器，系统标记为“受阻”等待决策 |
+| 语义 / 跨语言去重（多语言句向量，ONNX，固定版本 + 哈希） | ✅ 已实现，**真实模型已在沙箱内运行**；本轮候选保留集 +0.043，未达 +0.05 门槛，未采用（见 `docs/INTEGRATIONS.md`） |
+| 每日费用上限（调用前按最坏情况检查，未知价格拒绝付费调用） | ✅ 已实现并测试（模拟客户端） |
+| Claude 模型适配器（`anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现，**等待 API 密钥与费用上限**，未发出付费请求 |
+| 飞书：回调模式 + 长连接模式（`lark-oapi`，无需公网地址） | ⚠️ 已实现，**等待应用凭据**，未连接真实租户 |
+| 后台服务（launchd） | ✅ **已在本机安装并运行**；`service install/uninstall/status` |
 | 自动采用 | ⏳ 第三阶段；默认关闭 |
 
 演示用的是**离线模拟模型**（模式匹配 + 固定规划）和**模板执行器**（代码来自 `templates.py`，不是模型写的），
@@ -32,14 +33,15 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 
 ## 快速开始
 
-需要 Python ≥ 3.9 和 Git，核心只用标准库。
+需要 Python ≥ 3.9 和 Git，核心只用标准库。可选能力需要 Python ≥ 3.10：
+`pip install -e '.[semantic]'`（句向量）、`'.[feishu]'`（飞书长连接）、`'.[anthropic]'`（Claude），或 `'.[all]'`。
 
 ```bash
 git clone git@github.com:busiyewang/OmnilawEvolution.git omnilaw-evolution
 cd omnilaw-evolution
 python3 -m pip install -e .          # 或者不安装，用 PYTHONPATH=src python3 -m omnilaw_evolution ...
 
-# 测试（约 40 秒，全部离线）
+# 测试（Python 3.9 约 5 分钟；缺可选依赖的测试会跳过）
 PYTHONPATH=src python3 -m unittest discover -s tests
 
 # 第一阶段演示：在 .demo/ 里新建演示实例，跑完整闭环，报告写到 reports/demo/
@@ -96,18 +98,30 @@ omnilaw-evolution serve-feishu --port 8787            # 飞书事件回调（接
 omnilaw-evolution daemon                              # 后台循环：需 background=true 且设置每日预算
 ```
 
-触发、抑制、缓存、复查、权限与飞书接入的说明见 [`docs/PHASE2.md`](docs/PHASE2.md)。
-
-### 使用真实模型（未在本机验证）
+### 真实能力（0.3.0）
 
 ```bash
-python3 -m pip install -e '.[anthropic]'   # anthropic SDK 1.x 需要 Python ≥ 3.10
-export ANTHROPIC_API_KEY=...               # 或 `ant auth login`
+omnilaw-evolution models fetch       # 下载并校验固定版本的多语言句向量模型（470 MB），再设 "semantic": {"enabled": true}
+omnilaw-evolution env                # 在 ~/.config/omnilaw-evolution/env 生成凭据模板（权限 600，仓库之外）
+omnilaw-evolution doctor             # 哪些能力可用、还缺什么（只显示变量名）
+omnilaw-evolution serve-feishu --mode ws                  # 飞书长连接，无需公网地址
+omnilaw-evolution service install [--services daemon feishu]   # 安装为 launchd 服务
 ```
 
-在 `omnilaw.json` 中设置 `"model": {"provider": "anthropic", "model": "claude-opus-5-5"}`，
-以及 `"budget": {"max_model_calls": N, "max_daily_cost_usd": X}`。适配器默认开启服务端拒答回退
-（`fallbacks: "default"`，beta），不需要可删掉 `llm.py` 中对应的两行。
+接入细节、真实结果和剩余步骤见 [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)。
+
+触发、抑制、缓存、复查、权限与飞书接入的说明见 [`docs/PHASE2.md`](docs/PHASE2.md)。
+
+### 使用真实模型（等待凭据，未发出付费请求）
+
+```bash
+python3 -m pip install -e '.[anthropic]'   # 需要 Python ≥ 3.10
+omnilaw-evolution env                      # 在生成的文件里填 ANTHROPIC_API_KEY，不要写进仓库
+```
+
+在 `omnilaw.json` 中设置 `"model": {"provider": "anthropic", "model": "claude-opus-5-5",
+"price_per_mtok": {"input": 4, "output": 20}}` 和 `"budget": {"max_daily_cost_usd": X}`。
+每次调用前先精确计数输入 token，按最坏情况检查当日上限；没配价格就拒绝调用。
 编程执行器可改为 `"executor": {"kind": "claude-code"}`：它在候选目录里以无头模式调用 `claude` CLI，
 同样受沙箱（禁读评测目录、写入限于候选目录）和范围守卫约束。
 
@@ -136,11 +150,12 @@ fixtures/sources/        三类来源的固定快照 + 一个对抗性注入页�
 fixtures/batches/        日报输入快照
 scripts/build_datasets.py  标注数据生成脚本（全部虚构）
 fixtures/discovery/      录制的 arXiv 检索结果（摘要级），用于离线回放增量发现
-tests/                   78 个测试（单元 + 端到端 + 红队 + 第二阶段流程）
+tests/                   95 个测试（单元 + 端到端 + 红队 + 第二阶段流程 + 真实能力接入）
 reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
 reports/demo2/           第二阶段演示报告（中文）
 docs/DESIGN.md           环境核对、参考项目核对与选型、架构、隔离设计、已知局限
 docs/PHASE2.md           第二阶段：触发、抑制、缓存、复查、预算、聊天与飞书接入
+docs/INTEGRATIONS.md     0.3.0：句向量、费用上限、飞书长连接、后台服务；真实结果与剩余步骤
 docs/deploy/             launchd / systemd / crontab 示例（未安装）
 ```
 
