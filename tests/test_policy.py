@@ -113,6 +113,38 @@ class Decide(unittest.TestCase):
         ok, _ = policy.decide(self.BASE, self.cand(ms_per_item=500), self.CRIT, {"passed": True})
         self.assertFalse(ok)
 
+    def test_high_baseline_can_improve_without_impossible_absolute_gain(self):
+        base = dict(self.BASE, f1=0.9565)
+        ok, reasons = policy.decide(base, self.cand(f1=1.0), self.CRIT, {"passed": True})
+        self.assertTrue(ok)
+        self.assertIn("100.00%", reasons[1])
+
+    def test_relative_route_threshold_and_zero_deletions(self):
+        base = dict(self.BASE, f1=0.96)
+        for score, deletions, accepted in [(0.98, 0, True), (0.979, 0, False), (0.99, 1, False)]:
+            with self.subTest(score=score, deletions=deletions):
+                cand = self.cand(f1=score, false_deletions=deletions, false_deletion_rate=deletions / 100)
+                self.assertEqual(policy.decide(base, cand, self.CRIT, {"passed": True})[0], accepted)
+
+    def test_perfect_unchanged_or_regressed_baselines_are_not_improvements(self):
+        for before, after in [(1.0, 1.0), (0.96, 0.96), (0.96, 0.95)]:
+            with self.subTest(before=before, after=after):
+                self.assertFalse(policy.decide(dict(self.BASE, f1=before), self.cand(f1=after),
+                                               self.CRIT, {"passed": True})[0])
+
+    def test_relative_route_preserves_all_safety_checks(self):
+        for changes, regression in [({"critical_lost": ["x"]}, {"passed": True}),
+                                     ({"ms_per_item": 100}, {"passed": True}),
+                                     ({}, {"passed": False, "failures": ["contract"]})]:
+            self.assertFalse(policy.decide(dict(self.BASE, f1=0.96), self.cand(f1=1.0, **changes),
+                                           self.CRIT, regression)[0])
+
+    def test_legacy_or_disabled_relative_criteria_keep_absolute_rule(self):
+        for crit in [{k: v for k, v in self.CRIT.items() if k != "min_relative_error_reduction"},
+                     dict(self.CRIT, min_relative_error_reduction=None)]:
+            self.assertFalse(policy.decide(dict(self.BASE, f1=0.9565), self.cand(f1=1.0),
+                                           crit, {"passed": True})[0])
+
 
 if __name__ == "__main__":
     unittest.main()

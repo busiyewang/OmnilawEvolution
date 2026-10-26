@@ -1,0 +1,27 @@
+{
+  "dataset": "PAWS-X",
+  "upstream": "https://github.com/google-research-datasets/paws/tree/master/pawsx",
+  "mirror": "https://raw.githubusercontent.com/airaria/TextPruner/db2e10f2e7106a5a9e56fab3a791f68976f2c0b2/examples/datasets/pawsx/",
+  "mirror_revision": "db2e10f2e7106a5a9e56fab3a791f68976f2c0b2",
+  "source_sha256": {
+    "dev-en.tsv": "db21decf9b774486984046a324597a1996a7f65c75ecdcdcf65d2473f4c80db5",
+    "dev-zh.tsv": "d4a897e6a9f141a6908a57f528c24ac2d861113166bc465ac5a9050ff4eb93a7",
+    "test-en.tsv": "73268ee50daa70273709243c8d111a7d446c1e325afe16747791202cbd441eb2",
+    "test-zh.tsv": "7ea4cfb07467c0e76e97f64ede87335c100eaeb46058c2610b0ca04fe2998a29"
+  },
+  "selection": "SHA256 order; 15 per label/language direction; no shared normalised source sentences",
+  "snapshots": {
+    "dev": {
+      "pairs": 120,
+      "sha256": "ed6c2345e780de289a562ced87c2b240168d01de532b5ffc29dce543a3d3acf3"
+    },
+    "holdout": {
+      "pairs": 120,
+      "sha256": "b28aff2c61c83091db434fbbb43c7219749dd43e6f069cf01b96273647e22dc2"
+    },
+    "batch2": {
+      "pairs": 120,
+      "sha256": "e90ebb03f4e5e099d8d4aa34be907c944d644d1b23df8dbfc94b1cece44a9d75"
+    }
+  }
+}

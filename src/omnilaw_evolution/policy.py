@@ -81,12 +81,25 @@ def decide(baseline, candidate, criteria, regression):
     reasons = []
     primary = criteria["primary"]
     delta = candidate[primary] - baseline[primary]
-    ok = True
-    if delta < criteria["min_delta"]:
-        ok = False
-        reasons.append("%s delta %+.3f < required %+.3f" % (primary, delta, criteria["min_delta"]))
-    else:
-        reasons.append("%s delta %+.3f >= %+.3f" % (primary, delta, criteria["min_delta"]))
+    absolute_ok = delta > 0 and delta + 1e-12 >= criteria["min_delta"]
+    reasons.append("%s delta %+.4f %s required %+.4f" % (
+        primary, delta, ">=" if absolute_ok else "<", criteria["min_delta"]))
+    # F1 is bounded by 1. A fixed absolute gain becomes impossible near that
+    # ceiling. The optional second route measures reduction of (1 - F1),
+    # requires a strict improvement and permits no false deletions.
+    relative_ok = False
+    minimum = criteria.get("min_relative_error_reduction")
+    if primary == "f1" and minimum is not None:
+        if not 0 < minimum <= 1:
+            raise ValueError("min_relative_error_reduction must be in (0, 1]")
+        gap = 1.0 - baseline[primary]
+        reduction = delta / gap if gap > 0 else 0.0
+        relative_ok = (delta > 0 and reduction + 1e-12 >= minimum
+                       and candidate["false_deletion_rate"] == 0
+                       and candidate.get("false_deletions", 0) == 0)
+        reasons.append("F1 gap reduction %.2f%% (required %.2f%% with zero false deletions): %s" % (
+            reduction * 100, minimum * 100, "pass" if relative_ok else "fail"))
+    ok = absolute_ok or relative_ok
     if candidate["false_deletion_rate"] > criteria["max_false_deletion_rate"]:
         ok = False
         reasons.append("false-deletion rate %.3f > %.3f" % (candidate["false_deletion_rate"],

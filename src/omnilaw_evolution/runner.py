@@ -72,13 +72,20 @@ def goal_lock(cfg, goal):
 
 
 def create_run(db, cfg, proposal_id, mode="shadow", executor=None, budget_overrides=None):
-    if not db.get("proposals", proposal_id):
+    proposal = db.get("proposals", proposal_id)
+    if not proposal:
         raise RunError("no proposal %s" % proposal_id)
+    _require_current_evaluator(cfg, proposal.get("evaluator_version"))
     limits = dict(cfg["budget"], **(budget_overrides or {}))
     return db.insert("runs", {
         "proposal_id": proposal_id, "state": "QUEUED", "mode": mode, "budget": limits,
         "executor": executor or cfg["executor"]["kind"], "model_config": cfg["model"],
         "created_at": now(), "updated_at": now()})
+
+
+def _require_current_evaluator(cfg, version):
+    if version != evaluator.evaluator_version(cfg["eval_dir"]):
+        raise RunError("evaluation data or rules changed; create a new proposal and run to re-evaluate the baseline")
 
 
 def request_stop(db, run_id):
@@ -134,6 +141,8 @@ class Runner:
         with goal_lock(self.cfg, self.proposal["goal"]):
             self.db.update("runs", self.run_id, pid=os.getpid())
             try:
+                _require_current_evaluator(self.cfg, self.ck.get("planned", {}).get(
+                    "evaluator_version", self.proposal.get("evaluator_version")))
                 if "researched" not in self.ck:
                     self._enter("RESEARCHING")
                     self.research()
@@ -237,6 +246,7 @@ class Runner:
 
     def _eval(self, label, code_root, split, sha):
         self._guard()
+        _require_current_evaluator(self.cfg, self.ck["planned"]["evaluator_version"])
         scratch = os.path.join(self.dir, "eval", "%s-%s" % (label, split))
         try:
             res = evaluator.cached_run_on_split(self.db, self.cfg, code_root, split, scratch,
@@ -412,6 +422,7 @@ def apply_run(db, cfg, run_id, policy_name="manual"):
     run = db.get("runs", run_id)
     if run["state"] != "READY":
         raise RunError("run %d is %s; only READY runs can be applied" % (run_id, run["state"]))
+    _require_current_evaluator(cfg, run["evaluator_version"])
     rel = versions.apply_sha(db, cfg, run["candidate_sha"], run_id, policy_name)
     transition(db, run_id, "APPLIED")
     return rel

@@ -24,9 +24,12 @@ HARNESS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "eval_harness
 
 def evaluator_version(eval_dir):
     h = hashlib.sha256()
-    for p in (os.path.abspath(__file__), HARNESS, os.path.join(eval_dir, "datasets", "dedup", "MANIFEST.json")):
+    for p in (os.path.abspath(__file__), HARNESS, os.path.join(os.path.dirname(__file__), "policy.py"),
+              os.path.join(eval_dir, "datasets", "dedup", "MANIFEST.json")):
         with open(p, "rb") as f:
             h.update(f.read())
+    for split in ("dev", "holdout", "batch2"):
+        h.update(_split_bytes(eval_dir, split))
     return h.hexdigest()[:16]
 
 
@@ -35,12 +38,20 @@ def split_version(eval_dir):
         return json.load(f)["version"]
 
 
+def _split_bytes(eval_dir, split):
+    with open(os.path.join(eval_dir, "datasets", "dedup", "MANIFEST.json"), encoding="utf-8") as f:
+        manifest = json.load(f)
+    if split not in manifest["splits"] or split not in ("dev", "holdout", "batch2"):
+        raise ValueError("unknown evaluation split: %s" % split)
+    with open(os.path.join(eval_dir, "datasets", "dedup", split + ".jsonl"), "rb") as f:
+        data = f.read()
+    if hashlib.sha256(data).hexdigest() != manifest["splits"][split]["sha256"]:
+        raise ValueError("evaluation data hash mismatch for %s; rebuild and version the dataset" % split)
+    return data
+
+
 def load_split(eval_dir, split):
-    rows = []
-    with open(os.path.join(eval_dir, "datasets", "dedup", split + ".jsonl"), encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                rows.append(json.loads(line))
+    rows = [json.loads(line) for line in _split_bytes(eval_dir, split).decode("utf-8").splitlines() if line.strip()]
     return rows
 
 
@@ -113,10 +124,21 @@ def run_on_split(cfg, code_root, split, scratch, stop_check=None, timeout=None):
     with metrics, per_item, regression info, isolation level and seconds."""
     rows = load_split(cfg["eval_dir"], split)
     items = [{k: v for k, v in r.items() if k != "label"} for r in rows]
+    # PAWS-X labels describe independent pairs, not arbitrary relations between
+    # pairs. Keep the fictional daily feed as one batch and each source pair as
+    # its own batch. No group identifiers or provenance reach candidate code.
+    groups = []
+    previous = object()
+    for row, item in zip(rows, items):
+        group = row["label"].get("group", "feed")
+        if group != previous:
+            groups.append([])
+        groups[-1].append(item)
+        previous = group
     os.makedirs(scratch, exist_ok=True)
     inp, out = os.path.join(scratch, "items.json"), os.path.join(scratch, "decisions.json")
     with open(inp, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False)
+        json.dump({"groups": groups}, f, ensure_ascii=False)
     res = sandbox.run([sys.executable, "-I", "-B", HARNESS, os.path.join(code_root, "src"), inp, out],
                       scratch=scratch, deny_read=protected_reads(cfg), network=False,
                       timeout=timeout or cfg["budget"]["max_process_seconds"], mode=cfg["sandbox"]["mode"],
@@ -130,6 +152,11 @@ def run_on_split(cfg, code_root, split, scratch, stop_check=None, timeout=None):
     with open(out, encoding="utf-8") as f:
         payload = json.load(f)
     fails = contract_failures(items, payload["decisions"])
+    if not fails:
+        offset = 0
+        for group in groups:
+            fails.extend(contract_failures(group, payload["decisions"][offset:offset + len(group)]))
+            offset += len(group)
     if not payload.get("deterministic"):
         fails.append("non-deterministic output")
     if not payload.get("empty_ok"):
@@ -178,8 +205,7 @@ def _behaviour_bytes(name, data):
 
 
 def split_sha(eval_dir, split):
-    with open(os.path.join(eval_dir, "datasets", "dedup", "MANIFEST.json"), encoding="utf-8") as f:
-        return json.load(f)["splits"][split]["sha256"]
+    return hashlib.sha256(_split_bytes(eval_dir, split)).hexdigest()
 
 
 def cached_run_on_split(db, cfg, code_root, split, scratch, stop_check=None, timeout=None):

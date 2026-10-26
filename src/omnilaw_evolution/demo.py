@@ -27,7 +27,7 @@ from .planner import propose
 from .report import run_report
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SKIP = {".git", ".omnilaw", "__pycache__", ".demo", "reports", "omnilaw.json", ".pytest_cache"}
+SKIP = {".git", ".omnilaw", ".venv", "__pycache__", ".demo", "reports", "omnilaw.json", ".pytest_cache"}
 GOAL = "减少技术日报中的重复材料，同时保留带有新信息的条目 (reduce duplicates, keep items with new information)"
 LIVE_URLS = [
     "https://en.wikipedia.org/wiki/URI_normalization",
@@ -49,6 +49,11 @@ def build_instance(dest):
         return [n for n in names if n in SKIP or n.endswith(".pyc") or n.startswith(".demo")
                 or os.path.realpath(os.path.join(d, n)) == os.path.realpath(dest)]
     shutil.copytree(REPO_ROOT, dest, ignore=ignore)
+    # Demos exercise the workflow with the original fictional fixtures. The
+    # production evaluation corpus is versioned separately and can reject all
+    # candidates; a mechanism test must not require benchmark success.
+    subprocess.run([sys.executable, os.path.join(dest, "scripts", "build_datasets.py"),
+                    "--profile", "demo"], check=True, capture_output=True)
     versions.git(dest, "init", "-q", "-b", "main")
     versions.git(dest, "add", "-A")
     versions.git(dest, "commit", "-q", "-m", "demo instance baseline")

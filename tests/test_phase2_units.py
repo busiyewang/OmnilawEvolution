@@ -38,6 +38,7 @@ class Migration(unittest.TestCase):
         self.assertEqual(db.schema_version(), dbmod.SCHEMA_VERSION)
         self.assertEqual(db.one("SELECT url FROM sources")["url"], "u")  # data kept
         self.assertIsNone(db.one("SELECT supersedes FROM sources")["supersedes"])
+        self.assertIn("evaluator_version", [r["name"] for r in db.all("PRAGMA table_info(proposals)")])
         DB(path)  # idempotent
         self.assertTrue(dbmod.schema_compatible(1, 2))
         self.assertFalse(dbmod.schema_compatible(3, 2))

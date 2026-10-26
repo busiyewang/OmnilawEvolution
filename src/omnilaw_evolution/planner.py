@@ -5,6 +5,7 @@ candidate exists."""
 from __future__ import annotations
 
 from .db import loads, now
+from .evaluator import evaluator_version
 from .knowledge import extract_for_source, implementable_methods
 
 
@@ -70,6 +71,7 @@ def open_problems(db, knowledge, cfg=None, include_covered=False):
 
 
 def propose(db, cfg, llm, budget, goal):
+    version = evaluator_version(cfg["eval_dir"])
     ensure_knowledge(db, llm, budget)
     knowledge = db.all("SELECT * FROM knowledge ORDER BY id")
     failures = db.all("SELECT item_id, case_type, kind, detail FROM failures WHERE status='open'")
@@ -84,7 +86,7 @@ def propose(db, cfg, llm, budget, goal):
         if not cited:
             continue  # a proposal without evidence is not stored
         variants = p["variants"][: cfg["budget"]["max_candidates"]]
-        seen = _same_proposal(db, p["methods"], variants)
+        seen = _same_proposal(db, p["methods"], variants, cfg["criteria"], version)
         if seen:
             # Repeated research suppression: the same experiment is not rerun.
             skipped.append({"proposal": seen["id"], "status": seen["status"], "methods": p["methods"]})
@@ -93,14 +95,17 @@ def propose(db, cfg, llm, budget, goal):
             "goal": goal, "problem": p["problem"], "module": cfg["target_module"],
             "hypothesis": p["hypothesis"], "methods": p["methods"], "knowledge_ids": cited,
             "variants": variants,
-            "criteria": cfg["criteria"], "planner": llm.name, "created_at": now()})
+            "criteria": cfg["criteria"], "evaluator_version": version,
+            "planner": llm.name, "created_at": now()})
         ids.append(pid)
     return ids, open_problems(db, knowledge, cfg), skipped
 
 
-def _same_proposal(db, methods, variants):
-    for row in db.all("SELECT id, status, methods, variants FROM proposals"):
-        if loads(row["methods"]) == methods and loads(row["variants"]) == variants:
+def _same_proposal(db, methods, variants, criteria, version):
+    for row in db.all("SELECT id, status, methods, variants, criteria FROM proposals WHERE evaluator_version=?",
+                      (version,)):
+        if (loads(row["methods"]) == methods and loads(row["variants"]) == variants
+                and loads(row["criteria"]) == criteria):
             return row
     return None
 

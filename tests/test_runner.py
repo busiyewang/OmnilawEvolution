@@ -107,6 +107,48 @@ class Interrupts(unittest.TestCase):
     def tearDown(self):
         self.inst.close()
 
+    def change_evaluation_version(self):
+        path = os.path.join(self.inst.cfg["eval_dir"], "datasets/dedup/MANIFEST.json")
+        with open(path) as f:
+            manifest = json.load(f)
+        manifest["version"] += ".updated"
+        with open(path, "w") as f:
+            json.dump(manifest, f)
+
+    def test_dataset_upgrade_requires_new_proposal_and_remeasured_baseline(self):
+        db, cfg = self.inst.db, self.inst.cfg
+        rid = runner.create_run(db, cfg, self.good)
+        self.assertEqual(runner.Runner(db, cfg, rid).execute(), "READY")
+        before = versions.current_release(db)["id"]
+        self.change_evaluation_version()
+        with self.assertRaisesRegex(runner.RunError, "create a new proposal"):
+            runner.apply_run(db, cfg, rid)
+        with self.assertRaisesRegex(runner.RunError, "create a new proposal"):
+            runner.create_run(db, cfg, self.good)
+        self.assertEqual(versions.current_release(db)["id"], before)
+        ids, _, _ = self.inst.propose()
+        self.assertEqual(len(ids), 2)
+        fresh = runner.create_run(db, cfg, ids[0])
+        self.assertEqual(runner.Runner(db, cfg, fresh).execute(), "READY")
+        baselines = db.all("SELECT isolation FROM evaluations WHERE run_id=? AND variant='baseline'", (fresh,))
+        self.assertEqual(len(baselines), 2)
+        self.assertTrue(all("cached" not in row["isolation"] for row in baselines))
+
+    def test_resume_does_not_mix_evaluation_versions(self):
+        db, cfg = self.inst.db, self.inst.cfg
+        rid = runner.create_run(db, cfg, self.good, budget_overrides={"max_candidates": 0})
+        self.assertEqual(runner.Runner(db, cfg, rid).execute(), "BUDGET_EXHAUSTED")
+        self.change_evaluation_version()
+        self.assertEqual(runner.resume(db, cfg, rid, {"max_candidates": 4}), "FAILED")
+        self.assertIn("create a new proposal", db.get("runs", rid)["error"])
+
+    def test_new_criteria_allow_new_proposals_without_rewriting_old_ones(self):
+        old = loads(self.inst.db.get("proposals", self.good)["criteria"])
+        self.inst.cfg["criteria"]["min_relative_error_reduction"] = 0.75
+        ids, _, _ = self.inst.propose()
+        self.assertEqual(len(ids), 2)
+        self.assertEqual(loads(self.inst.db.get("proposals", self.good)["criteria"]), old)
+
     def test_timeout_ends_and_records(self):
         db, cfg = self.inst.db, self.inst.cfg
         rid = runner.create_run(db, cfg, self.good, executor="redteam-slow",

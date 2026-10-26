@@ -1,25 +1,65 @@
 {
   "name": "dedup",
-  "note": "Fictional mechanism-demo data; not a general benchmark.",
+  "note": "Fictional feed fixtures + public PAWS-X human-labelled sentence pairs. An external proxy benchmark, not user-news validation.",
+  "profile": "benchmark",
   "splits": {
     "batch2": {
-      "clusters": 8,
+      "cases": {
+        "cross-language": 30,
+        "exact-url": 1,
+        "hard-negative": 60,
+        "original": 127,
+        "paraphrase": 32,
+        "reprint": 2,
+        "same-topic-new-info": 1,
+        "scheme-and-www": 1,
+        "tracking-params": 2
+      },
+      "clusters": 188,
       "file": "batch2.jsonl",
-      "items": 16,
-      "sha256": "de2c512963c3ad711afe951e2feb715ba26296f32bcce866ac81f5411bfa6a9a"
+      "items": 256,
+      "sha256": "95884370340c93c85039ff572b37eb6ccc6266c5044195837491a49d518bb57b"
     },
     "dev": {
-      "clusters": 14,
+      "cases": {
+        "cross-language": 31,
+        "exact-url": 1,
+        "fragment-and-slash": 1,
+        "hard-negative": 60,
+        "near-duplicate-title": 2,
+        "original": 130,
+        "paraphrase": 30,
+        "reprint": 3,
+        "same-topic-different-event": 2,
+        "same-topic-new-info": 2,
+        "scheme-and-www": 1,
+        "tracking-params": 3
+      },
+      "clusters": 194,
       "file": "dev.jsonl",
-      "items": 26,
-      "sha256": "f13493c0d4dccc4a62e3ef9fa3eea2e9dffadbfd63890a989fa156544f510976"
+      "items": 266,
+      "sha256": "809e12c99e547e1d6ea538c26a4fa26f4281c187c807a3c14039f9ba20e073f3"
     },
     "holdout": {
-      "clusters": 16,
+      "cases": {
+        "cross-language": 31,
+        "exact-url": 1,
+        "fragment-and-slash": 1,
+        "hard-negative": 60,
+        "near-duplicate-title": 2,
+        "original": 130,
+        "paraphrase": 30,
+        "reprint": 3,
+        "same-topic-different-event": 5,
+        "same-topic-new-info": 1,
+        "scheme-and-www": 1,
+        "tracking-params": 3
+      },
+      "clusters": 196,
       "file": "holdout.jsonl",
-      "items": 28,
-      "sha256": "365be4b88efe284b0e7a91e72e8170bcb69745c611a031b865e76621bb2e2649"
+      "items": 268,
+      "sha256": "3b61d4c541a8e3d34f17980d7aaa354ef8d3ab09082454de1b7ac116b153eba0"
     }
   },
-  "version": "2026-10-25.1"
+  "version": "2026-10-25.2"
 }

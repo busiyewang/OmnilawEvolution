@@ -39,6 +39,7 @@ DEFAULTS = {
     "criteria": {
         "primary": "f1",
         "min_delta": 0.05,
+        "min_relative_error_reduction": 0.5,
         "max_false_deletion_rate": 0.05,
         "max_ms_per_item": 50.0,
         "require_regression_pass": True,

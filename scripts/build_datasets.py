@@ -1,6 +1,7 @@
 """Build the labelled dedup datasets under eval/datasets/dedup/.
 
-All organisations, products and events are fictional. Each item carries a
+The feed fixtures below are fictional; the default benchmark additionally
+imports public labelled PAWS-X pairs from frozen snapshots. Each item carries a
 ``label`` with its gold cluster, the case type it exercises, and whether it is
 ``critical`` (it carries information found nowhere else and must never be
 dropped). The evaluator strips labels before candidate code sees the items.
@@ -9,6 +10,8 @@ Run from the repo root:  python3 scripts/build_datasets.py
 """
 from __future__ import annotations
 
+import argparse
+from collections import Counter
 import hashlib
 import json
 import os
@@ -305,26 +308,43 @@ def batch2():
     ]
 
 
-def write(name, rows):
-    path = os.path.join(OUT, name + ".jsonl")
+def write(name, rows, out=OUT):
+    path = os.path.join(out, name + ".jsonl")
     with open(path, "w", encoding="utf-8") as f:
         for r in rows:
             f.write(json.dumps(r, ensure_ascii=False, sort_keys=True) + "\n")
     with open(path, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     return {"file": name + ".jsonl", "items": len(rows), "sha256": digest,
-            "clusters": len({r["label"]["cluster"] for r in rows})}
+            "clusters": len({r["label"]["cluster"] for r in rows}),
+            "cases": dict(sorted(Counter(r["label"]["case"] for r in rows).items()))}
+
+
+def build(profile="benchmark", out=OUT):
+    os.makedirs(out, exist_ok=True)
+    splits = {"dev": dev(), "holdout": holdout(), "batch2": batch2()}
+    if profile == "benchmark":
+        from import_pawsx import load_snapshot, to_items
+        for name in splits:
+            splits[name] += to_items(name, load_snapshot(name))
+    manifest = {"name": "dedup", "version": "2026-10-25.1" if profile == "demo" else "2026-10-25.2",
+                "profile": profile,
+                "note": ("Fictional mechanism-demo data; not a general benchmark." if profile == "demo" else
+                         "Fictional feed fixtures + public PAWS-X human-labelled sentence pairs. "
+                         "An external proxy benchmark, not user-news validation."),
+                "splits": {name: write(name, rows, out) for name, rows in splits.items()}}
+    with open(os.path.join(out, "MANIFEST.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2, sort_keys=True)
+        f.write("\n")
+    return manifest
 
 
 def main():
-    os.makedirs(OUT, exist_ok=True)
-    manifest = {"name": "dedup", "version": "2026-10-25.1",
-                "note": "Fictional mechanism-demo data; not a general benchmark.",
-                "splits": {"dev": write("dev", dev()), "holdout": write("holdout", holdout()),
-                           "batch2": write("batch2", batch2())}}
-    with open(os.path.join(OUT, "MANIFEST.json"), "w", encoding="utf-8") as f:
-        json.dump(manifest, f, ensure_ascii=False, indent=2, sort_keys=True)
-        f.write("\n")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile", choices=("benchmark", "demo"), default="benchmark")
+    parser.add_argument("--out", default=OUT, help="output datasets/dedup directory")
+    args = parser.parse_args()
+    manifest = build(args.profile, args.out)
     # Unlabeled copy of batch2 used as the "daily snapshot" for the collect demo.
     batch_dir = os.path.join(ROOT, "fixtures", "batches")
     os.makedirs(batch_dir, exist_ok=True)

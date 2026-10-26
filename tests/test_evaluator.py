@@ -1,6 +1,7 @@
 import unittest
 
 from omnilaw_evolution import evaluator
+from omnilaw_evolution.eval_harness import evaluate_groups
 
 
 def row(iid, cluster, critical=False):
@@ -42,6 +43,10 @@ class Score(unittest.TestCase):
         self.assertEqual(evaluator.contract_failures(items, dec(b="a")), [])
         self.assertTrue(evaluator.contract_failures(items, dec(b="e")))      # points forward
         self.assertTrue(evaluator.contract_failures(items, dec()[:-1]))     # missing item
+
+    def test_group_flattening_does_not_hide_a_non_list_return(self):
+        with self.assertRaisesRegex(TypeError, "must return a list"):
+            evaluate_groups(lambda items: tuple(dec()), [[{"id": "a"}]])
 
 
 if __name__ == "__main__":

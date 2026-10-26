@@ -1,6 +1,7 @@
 import os
 import shutil
 import tempfile
+import runpy
 
 from omnilaw_evolution import sources, versions
 from omnilaw_evolution.budget import Budget
@@ -11,6 +12,12 @@ from omnilaw_evolution.llm import MockLLM
 from omnilaw_evolution.planner import propose
 
 GOAL = "reduce duplicates, keep new information"
+
+
+def demo_split(name):
+    """Small synthetic fixtures for mechanism tests, independent of benchmark scores."""
+    script = os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "build_datasets.py")
+    return runpy.run_path(script)[name]()
 
 
 class Instance:

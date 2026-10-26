@@ -19,7 +19,7 @@ from omnilaw_evolution.llm import AnthropicLLM, MockLLM
 from omnilaw_evolution.templates import render_dedup
 from omnilaw_evolution.worker import DaemonRefused, Worker, check_daemon_config
 
-from helpers import Instance
+from helpers import Instance, demo_split
 
 SEMANTIC_OK = semantic.available()[0]
 PRICE = {"input": 4.0, "output": 20.0}
@@ -82,8 +82,7 @@ class SemanticRuntime(unittest.TestCase):
         self.assertGreater(float(a[0] @ a[1]), 0.6)
 
     def test_cross_language_variant_on_dev(self):
-        eval_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "eval")
-        rows = load_split(eval_dir, "dev")
+        rows = demo_split("dev")
         items = [{k: v for k, v in r.items() if k != "label"} for r in rows]
         src = render_dedup(["url_canonicalization", "shingle_jaccard", "cross_lingual_embedding"],
                            {"threshold": 0.6, "k": 4, "xlang_threshold": 0.75}, 0, 0, [])

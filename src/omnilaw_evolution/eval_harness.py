@@ -8,17 +8,27 @@ import sys
 import time
 
 
+def evaluate_groups(dedup, groups):
+    decisions = []
+    for items in groups:
+        result = dedup([dict(i) for i in items])
+        if not isinstance(result, list):
+            raise TypeError("dedup must return a list for every batch")
+        decisions.extend(result)
+    return decisions
+
+
 def main():
     src, inp, out = sys.argv[1:4]
     sys.path.insert(0, src)
     from omnilaw_evolution.collector.dedup import dedup  # noqa: E402
 
     with open(inp, encoding="utf-8") as f:
-        items = json.load(f)
+        groups = json.load(f)["groups"]
     t0 = time.perf_counter()
-    first = dedup([dict(i) for i in items])
+    first = evaluate_groups(dedup, groups)
     t1 = time.perf_counter()
-    second = dedup([dict(i) for i in items])
+    second = evaluate_groups(dedup, groups)
     empty = dedup([])
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"decisions": first, "deterministic": first == second, "empty_ok": empty == [],
