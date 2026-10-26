@@ -68,6 +68,9 @@ DEFAULTS = {
     # dir: absolute, or relative to project_root; default <state_dir>/journal.
     "journal": {"dir": None, "max_patch_lines": 120},
     "chat": {
+        "engine": "hermes",                # local DeepSeek CLI: Hermes; basic keeps project-only tools
+        "max_iterations": 30,
+        "max_seconds": 900,
         "history_turns": 20,
         "max_context_chars": 60000,
         "max_tool_rounds": 3,

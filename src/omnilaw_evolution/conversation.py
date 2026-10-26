@@ -1,8 +1,4 @@
-"""Persistent local chat with a bounded model/tool loop.
-
-Inspired by Hermes' transcript -> model -> validated tool -> transcript flow;
-implemented independently against Omnilaw's existing command permissions.
-"""
+"""Persistent chat: embedded Hermes for the local CLI, scoped project chat elsewhere."""
 from __future__ import annotations
 
 import fcntl
@@ -20,9 +16,9 @@ from .schema import validate
 
 HELP = """可以直接聊天，例如：你好、介绍一下你自己、帮我看看当前运行情况。
 也可以说：帮我研究一下新闻去重的方法。
-聊天会保存在本地，同一会话再次进入时继续；每次携带最近的有限轮次。
+聊天会保存在本地，同一会话再次进入时继续；智能体模式会在上下文过长时自动压缩。
 
-/help 帮助   /new 新会话   /history 查看记录   /exit 退出
+/help 帮助   /new 新会话   /history 查看记录   /tools 工具   /exit 退出
 /status 状态   /queue 队列   /budget 预算   /research <主题> 提交研究
 /apply <运行编号>、/rollback <版本编号> 需要你再输入 /confirm <确认码>。
 原有中文命令（帮助、状态、研究等）仍可使用。"""
@@ -40,11 +36,15 @@ SYSTEM = """你是 Omnilaw，一个可以自然交流的个人研究助手。默
 
 
 class Conversation:
-    def __init__(self, db, cfg, user="local", channel="cli", session="default", llm=None, on_event=None):
+    def __init__(self, db, cfg, user="local", channel="cli", session="default", llm=None, on_event=None, on_request=None):
         self.db, self.cfg, self.user, self.channel = db, cfg, user, channel
         self.session = session
         self.llm, self.on_event = llm, on_event
         self.router = ChatRouter(db, cfg)
+        self.runtime = None
+        self.on_request = on_request
+        self.use_hermes = (llm is None and cfg["chat"].get("engine") == "hermes"
+                           and cfg["model"]["provider"] == "deepseek" and user == "local" and channel == "cli")
 
     def _rows(self, limit=None):
         limit = limit or max(1, int(self.cfg["chat"].get("history_turns", 20)))
@@ -89,10 +89,21 @@ class Conversation:
 
     def _handle(self, text):
         if text in ("/new", "/clear"):
+            self._close_runtime()
             self.session = secrets.token_hex(4)
             return "已开启新会话 %s，原记录保留。下次可用 chat --session %s 继续。" % (self.session, self.session)
         if text in ("/help", "帮助", "help"):
-            return HELP + "\n\n" + self.router.handle(self.user, "help", self.channel)
+            engine = ("当前为 Hermes 智能体：可执行本机任务、读写文件、查网页，并根据结果继续操作。"
+                      if self.use_hermes else "当前为基础项目聊天模式。")
+            return engine + "\n\n" + HELP + "\n\n" + self.router.handle(self.user, "help", self.channel)
+        if text == "/tools":
+            if not self.use_hermes:
+                return "project_command（当前为基础项目聊天模式）"
+            try:
+                self._ensure_runtime()
+                return "已加载的 Hermes 工具：\n" + "\n".join(self.runtime.tools)
+            except (RuntimeError, OSError) as exc:
+                return str(exc)
         if text == "/history":
             lines = []
             for message in self.history():
@@ -102,11 +113,110 @@ class Conversation:
         command = text[1:] if text.startswith("/") else text
         first = command.split(maxsplit=1)[0]
         cmd = ALIASES.get(first, first.lower())
-        if text.startswith("/") or cmd in READ | WRITE | ADMIN:
+        shorthand = cmd in READ | WRITE | ADMIN
+        # “运行 python script.py” is an agent task, not the no-argument
+        # “运行” alias for listing research runs. Slash commands stay explicit.
+        if self.use_hermes and len(command.split(maxsplit=1)) > 1 and cmd in {
+                "status", "queue", "runs", "releases", "budget", "problems", "help"}:
+            shorthand = False
+        if text.startswith("/") or shorthand:
+            previous = self._agent_context() if self.use_hermes else []
             reply = self.router.handle(self.user, command, self.channel)
             self._save([{"role": "user", "content": text}, {"role": "assistant", "content": reply}])
+            if self.use_hermes:
+                self._save_agent_context(previous + [
+                    {"role": "user", "content": text}, {"role": "assistant", "content": reply}])
             return reply
-        return self._chat(text)
+        return self._chat_hermes(text) if self.use_hermes else self._chat(text)
+
+    def _ensure_runtime(self):
+        if self.runtime is None:
+            from .hermes_runtime import HermesRuntime
+            if self.on_event:
+                self.on_event("加载 Hermes 智能体与本机工具…")
+            self.runtime = HermesRuntime(self.cfg, self.user, self.channel, self.session,
+                                         self._tool_schema(), self.on_event, self.on_request)
+
+    def _close_runtime(self):
+        if self.runtime is not None:
+            self.runtime.close()
+            self.runtime = None
+
+    def _agent_context(self):
+        row = self.db.one("SELECT messages FROM agent_sessions WHERE owner=? AND channel=? AND session=?",
+                          (self.user, self.channel, self.session))
+        return self._repair_tool_tail(loads(row["messages"], [])) if row else self._context(60000)
+
+    def _save_agent_context(self, messages):
+        self.db.execute("INSERT INTO agent_sessions(owner,channel,session,messages,updated_at) VALUES(?,?,?,?,?) "
+            "ON CONFLICT(owner,channel,session) DO UPDATE SET messages=excluded.messages,updated_at=excluded.updated_at",
+            (self.user, self.channel, self.session, json.dumps(messages, ensure_ascii=False), now()))
+
+    @staticmethod
+    def _repair_tool_tail(messages):
+        """Interrupted tool batches must have results before the next user turn."""
+        out, pending = [], {}
+        for message in messages:
+            if message.get("role") == "system":
+                continue
+            if message.get("role") != "tool":
+                for call_id in pending:
+                    out.append({"role": "tool", "tool_call_id": call_id,
+                                "content": "执行被中断，结果未知。请先检查实际状态，避免重复执行。"})
+                pending = {}
+            if message.get("role") == "assistant":
+                pending = {c["id"]: c for c in message.get("tool_calls") or []
+                           if isinstance(c, dict) and isinstance(c.get("id"), str)}
+            if message.get("role") == "tool":
+                pending.pop(message.get("tool_call_id"), None)
+            out.append(message)
+        for call_id in pending:
+            out.append({"role": "tool", "tool_call_id": call_id,
+                        "content": "执行被中断，结果未知。请先检查实际状态，避免重复执行。"})
+        return out
+
+    def _chat_hermes(self, text):
+        history = self._agent_context()
+        turn = [{"role": "user", "content": text}]
+        turn_id = self._save(turn)
+        try:
+            self._ensure_runtime()
+            result = self.runtime.run(text, history)
+            messages = self._repair_tool_tail(result["messages"])
+            reply = result["reply"]
+            # Hermes exports a boundary after compression, but locating the last
+            # matching user message also handles older upstream return envelopes.
+            boundary = next((i for i in range(len(messages) - 1, -1, -1)
+                if messages[i].get("role") == "user" and messages[i].get("content") == text), len(messages))
+            turn = messages[boundary:] or turn
+            if not turn or turn[-1].get("role") != "assistant" or turn[-1].get("content") != reply:
+                turn.append({"role": "assistant", "content": reply})
+                messages.append(turn[-1])
+            self._save_agent_context(messages)
+            self._save(turn, turn_id)
+            return reply
+        except KeyboardInterrupt:
+            reply = "已中断本轮。已执行的文件和终端操作不会撤销；继续时会先核对实际状态。"
+        except (RuntimeError, OSError, ValueError) as exc:
+            reply = "本轮未完成：%s" % exc
+        if self.runtime:
+            partial = getattr(self.runtime, "last_messages", [])
+            if self.runtime.bridge:
+                partial = self.runtime.bridge.last_messages or partial
+            if partial:
+                history = self._repair_tool_tail(partial)
+                boundary = next((i for i in range(len(history) - 1, -1, -1)
+                    if history[i].get("role") == "user" and history[i].get("content") == text), len(history))
+                turn = history[boundary:] or turn
+            else:
+                history += turn
+        else:
+            history += turn
+        message = {"role": "assistant", "content": reply}
+        self._save(turn + [message], turn_id)
+        self._save_agent_context(history + [message])
+        self._close_runtime()
+        return reply
 
     def _tool_schema(self):
         commands = sorted((READ | WRITE | ADMIN) - {"confirm"})
@@ -211,6 +321,7 @@ class Conversation:
         return reply + ("\n已返回的工具结果：\n" + "\n".join(results) if results else "")
 
     def close(self):
+        self._close_runtime()
         guard = getattr(self.llm, "guard", None)
         if guard is not None and guard.db is not self.db:
             guard.db.close()

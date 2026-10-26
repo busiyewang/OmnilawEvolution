@@ -142,6 +142,10 @@ def doctor(cfg):
                   "credential_set": bool(os.environ.get(key_env)),
                   "price_per_mtok": price(cfg), "max_daily_cost_usd": cfg["budget"].get("max_daily_cost_usd")},
         "executor": {"kind": cfg["executor"]["kind"], "claude_cli": shutil.which(cfg["executor"]["claude_cli"])},
+        "chat_agent": {"engine": cfg["chat"].get("engine", "basic"),
+                       "python_supported": sys.version_info[:2] == (3, 14),
+                       "dependencies_installed": all(has(m) for m in ("openai", "rich", "dotenv", "yaml", "browser_harness")),
+                       "source": "bundled Hermes 6dca67e", "local_cli_only": True},
         "feishu": {"sdk_installed": has("lark_oapi"),
                    "app_credentials_set": all(os.environ.get(fc[k]) for k in ("app_id_env", "app_secret_env")),
                    "verification_token_set": bool(os.environ.get(fc["verification_token_env"])),
@@ -152,6 +156,9 @@ def doctor(cfg):
                        "service": service_status()},
     }
     todo = []
+    if cfg["chat"].get("engine") == "hermes" and not (
+            checks["chat_agent"]["python_supported"] and checks["chat_agent"]["dependencies_installed"]):
+        todo.append("chat_agent: Python 3.14 and python -m pip install -e '.[agent]'")
     if not ok_sem:
         todo.append("semantic: " + why_sem)
     if cfg["model"]["provider"] != "mock":

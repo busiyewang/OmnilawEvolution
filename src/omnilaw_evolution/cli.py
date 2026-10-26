@@ -231,8 +231,19 @@ def cmd_chat(args):
     from .conversation import Conversation
     cfg, db = _ctx(args)
     interactive = sys.stdin.isatty() and not args.text
+
+    def request(event):
+        if not interactive:
+            return "deny" if event.get("kind") == "approval" else "当前为非交互调用；请说明需要用户补充的信息并停止相关操作。"
+        print("\n" + event["title"])
+        if event.get("kind") == "approval":
+            answer = input("允许这次操作？[y/N] ").strip().lower()
+            return "once" if answer in ("y", "yes", "是") else "deny"
+        return input("你的回答 > ")
+
     chat = Conversation(db, cfg, user=args.user, session=args.session,
-                        on_event=(lambda msg: print("  · " + msg, flush=True)) if interactive else None)
+                        on_event=(lambda msg: print("  · " + msg, flush=True)) if interactive else None,
+                        on_request=request)
     try:
         if args.text:
             print(chat.handle(" ".join(args.text)))
@@ -243,6 +254,7 @@ def cmd_chat(args):
             except ImportError:
                 pass
         print("Omnilaw · %s · 会话 %s" % (cfg["model"]["model"], chat.session))
+        print("引擎：%s" % ("Hermes（本机工具、连续执行、记忆与技能）" if chat.use_hermes else "基础项目聊天"))
         print("直接输入消息即可聊天。/help 帮助，/new 新会话，/history 记录，/exit 或 Ctrl-D 退出。")
         while True:
             try:

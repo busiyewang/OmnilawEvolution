@@ -8,11 +8,17 @@ import os
 import sqlite3
 import time
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 # Migrations keyed by the version they produce. "additive" migrations only add
 # tables/columns, so releases recorded under an older schema stay compatible.
 MIGRATIONS = {
+    6: {"additive": True, "sql": [
+        """CREATE TABLE IF NOT EXISTS agent_sessions (
+            owner TEXT NOT NULL, channel TEXT NOT NULL, session TEXT NOT NULL,
+            messages TEXT NOT NULL, updated_at TEXT NOT NULL,
+            PRIMARY KEY(owner, channel, session))""",
+    ]},
     5: {"additive": True, "sql": [
         """CREATE TABLE IF NOT EXISTS chat_turns (
             id INTEGER PRIMARY KEY, owner TEXT NOT NULL, channel TEXT NOT NULL,

@@ -1,0 +1,10 @@
+{
+  "upstream": "https://github.com/NousResearch/hermes-agent",
+  "commit": "6dca67ed4dc5d11fb08e949737f69ed1a0737a7a",
+  "sha256": "8e3489467a80cf7dd17b3dada513459d722e442370e08728478f8d25e4375b24",
+  "files": 3049,
+  "uncompressed_bytes": 61809424,
+  "patches": [
+    "hermes_bootstrap.py: omit standalone updater/PM activation; use Omnilaw's Python environment"
+  ]
+}

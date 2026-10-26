@@ -16,10 +16,42 @@ dependencies = []  # core is standard library only
 anthropic = ["anthropic>=2.0; python_version >= '3.10'"]
 semantic = ["onnxruntime>=1.17", "tokenizers>=0.15", "numpy>=1.24"]   # + `omnilaw-evolution models fetch`
 feishu = ["lark-oapi>=1.4"]                                           # long-connection mode
-all = ["omnilaw-evolution[anthropic,semantic,feishu]"]
+agent = [
+  "openai==2.54.0; python_version >= '3.14'",
+  "python-dotenv>=1.2,<2; python_version >= '3.14'",
+  "httpx[socks]>=0.28,<0.29; python_version >= '3.14'",
+  "rich>=14.3,<15; python_version >= '3.14'",
+  "tenacity>=9.2,<10; python_version >= '3.14'",
+  "tomli-w>=1.2,<2; python_version >= '3.14'",
+  "ruamel.yaml>=0.18,<0.19; python_version >= '3.14'",
+  "PyYAML>=6,<7; python_version >= '3.14'",
+  "requests>=2.34,<3; python_version >= '3.14'",
+  "jinja2>=3.1.6,<4; python_version >= '3.14'",
+  "pydantic>=2.14,<3; python_version >= '3.14'",
+  "prompt-toolkit>=3.0.53,<4; python_version >= '3.14'",
+  "croniter>=6.2,<7; python_version >= '3.14'",
+  "snowballstemmer>=3.1,<4; python_version >= '3.14'",
+  "packaging>=26.3,<27; python_version >= '3.14'",
+  "Markdown>=3.11,<4; python_version >= '3.14'",
+  "PyJWT[crypto]>=2.15,<3; python_version >= '3.14'",
+  "psutil>=7.2,<8; python_version >= '3.14'",
+  "websockets>=15,<16; python_version >= '3.14'",
+  "browser-harness==0.1.13; python_version >= '3.14'",
+  "pathspec>=1.1,<2; python_version >= '3.14'",
+  "ptyprocess>=0.7,<1; python_version >= '3.14'",
+  "truststore>=0.10,<1; python_version >= '3.14'",
+  "fire>=0.7,<1; python_version >= '3.14'",
+  "ddgs>=9,<10; python_version >= '3.14'",
+  "beautifulsoup4>=4.14,<5; python_version >= '3.14'",
+  "trafilatura>=2,<3; python_version >= '3.14'",
+]
+all = ["omnilaw-evolution[anthropic,semantic,feishu,agent]"]
 
 [project.scripts]
 omnilaw-evolution = "omnilaw_evolution.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+omnilaw_evolution = ["_vendor/*"]

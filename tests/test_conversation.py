@@ -43,7 +43,7 @@ class ConversationTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.cfg = load_config(overrides={"state_dir": self.tmp.name,
             "model": {"provider": "deepseek"}, "daily_budget": {"max_model_calls": 20},
-            "chat": {"allowed_users": ["alice", "bob"]}})
+            "chat": {"engine": "basic", "allowed_users": ["alice", "bob"]}})
         self.db = DB(os.path.join(self.tmp.name, "state.sqlite3"))
         self.addCleanup(self.db.close)
 

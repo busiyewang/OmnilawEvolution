@@ -231,12 +231,52 @@ class DeepSeekLLM(ResearchLLM):
         return self._completion(messages, **options)
 
     def _completion(self, messages, **options):
+        data = self.complete_raw(messages, **options)
+        choices = data.get("choices")
+        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
+            raise RuntimeError("DeepSeek response lacks choices")
+        choice = choices[0]
+        if choice.get("finish_reason") not in ("stop", "tool_calls"):
+            raise RuntimeError("DeepSeek did not complete output; result discarded")
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            raise RuntimeError("DeepSeek response lacks an assistant message")
+        calls = message.get("tool_calls")
+        if calls:
+            if not options.get("tools") or not isinstance(calls, list) or len(calls) > 8:
+                raise RuntimeError("DeepSeek returned unexpected tool calls; nothing executed")
+            clean, seen = [], set()
+            for call in calls:
+                if not isinstance(call, dict) or not isinstance(call.get("id"), str) or not call["id"]:
+                    raise RuntimeError("DeepSeek returned an invalid tool call")
+                if call["id"] in seen:
+                    raise RuntimeError("DeepSeek returned duplicate tool call IDs")
+                seen.add(call["id"])
+                fn = call.get("function")
+                if not isinstance(fn, dict) or not isinstance(fn.get("name"), str) or not isinstance(fn.get("arguments"), str):
+                    raise RuntimeError("DeepSeek returned invalid tool arguments")
+                clean.append({"id": call["id"], "type": "function", "function": fn})
+            return {"role": "assistant", "content": message.get("content") or "",
+                    "tool_calls": clean}
+        content = message.get("content")
+        if not isinstance(content, str) or not content.strip():
+            raise RuntimeError("DeepSeek returned empty output")
+        return {"role": "assistant", "content": content}
+
+    def complete_raw(self, messages, **options):
+        """Budgeted wire response, also used by the embedded Hermes transport.
+
+        Callers cannot override the configured model, reasoning, output cap or
+        streaming policy. The Hermes SDK receives the full OpenAI-shaped reply.
+        """
         self.last_usage = {}
         key = os.environ.get(self.key_env)
         if not key:
             raise RuntimeError("missing credential: %s" % self.key_env)
-        payload = dict(model=self.model, messages=messages,
-                       thinking={"type": "disabled"}, max_tokens=self.max_tokens, stream=False, **options)
+        allowed = {"tools", "tool_choice", "parallel_tool_calls", "response_format", "temperature", "top_p", "stop"}
+        payload = {k: v for k, v in options.items() if k in allowed}
+        payload.update(model=self.model, messages=messages,
+                       thinking={"type": "disabled"}, max_tokens=self.max_tokens, stream=False)
         worst = self.guard.cost(self.context_tokens, self.max_tokens) if self.guard.price else 0.0
         day = self.guard.reserve(worst)
         self.last_usage = {"cost_usd": worst, "estimated": True}
@@ -270,36 +310,7 @@ class DeepSeekLLM(ResearchLLM):
         self.guard.settle(day, worst, cost)
         self.last_usage = {"input_tokens": counts[0], "output_tokens": counts[1],
                            "cost_usd": cost}
-        choices = data.get("choices")
-        if not isinstance(choices, list) or not choices or not isinstance(choices[0], dict):
-            raise RuntimeError("DeepSeek response lacks choices")
-        choice = choices[0]
-        if choice.get("finish_reason") not in ("stop", "tool_calls"):
-            raise RuntimeError("DeepSeek did not complete output; result discarded")
-        message = choice.get("message")
-        if not isinstance(message, dict):
-            raise RuntimeError("DeepSeek response lacks an assistant message")
-        calls = message.get("tool_calls")
-        if calls:
-            if not options.get("tools") or not isinstance(calls, list) or len(calls) > 8:
-                raise RuntimeError("DeepSeek returned unexpected tool calls; nothing executed")
-            clean, seen = [], set()
-            for call in calls:
-                if not isinstance(call, dict) or not isinstance(call.get("id"), str) or not call["id"]:
-                    raise RuntimeError("DeepSeek returned an invalid tool call")
-                if call["id"] in seen:
-                    raise RuntimeError("DeepSeek returned duplicate tool call IDs")
-                seen.add(call["id"])
-                fn = call.get("function")
-                if not isinstance(fn, dict) or not isinstance(fn.get("name"), str) or not isinstance(fn.get("arguments"), str):
-                    raise RuntimeError("DeepSeek returned invalid tool arguments")
-                clean.append({"id": call["id"], "type": "function", "function": fn})
-            return {"role": "assistant", "content": message.get("content") or "",
-                    "tool_calls": clean}
-        content = message.get("content")
-        if not isinstance(content, str) or not content.strip():
-            raise RuntimeError("DeepSeek returned empty output")
-        return {"role": "assistant", "content": content}
+        return data
 
 
 def make_llm(cfg):
