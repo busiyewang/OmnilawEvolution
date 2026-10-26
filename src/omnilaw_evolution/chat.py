@@ -165,9 +165,12 @@ class ChatRouter:
     def cmd_budget(self, user, args, channel):
         ledger = DailyLedger(self.db, self.cfg["daily_budget"])
         row = ledger.row()
-        return "今日用量：任务 %d，模型调用 %d，下载 %d 字节，候选 %d；剩余：%s" % (
+        usage = "今日用量：任务 %d，模型调用 %d，下载 %d 字节，候选 %d；剩余：%s" % (
             row["tasks"], row["model_calls"], row["download_bytes"], row["candidates"],
             ", ".join("%s=%s" % kv for kv in sorted(ledger.remaining().items())))
+        cap = float(self.cfg["budget"].get("max_daily_cost_usd") or 0)
+        spent = float(row["cost_usd"] or 0)
+        return usage + "\n费用账本（含进行中预占）：$%.6f / $%.2f，剩余 $%.6f。" % (spent, cap, max(0, cap - spent))
 
     def cmd_journal(self, user, args, channel):
         from . import journal

@@ -102,6 +102,33 @@ omnilaw-evolution serve-feishu --port 8787            # 飞书事件回调（接
 omnilaw-evolution daemon                              # 后台循环：需 background=true 且设置每日预算
 ```
 
+### 本地自然语言聊天
+
+配置 DeepSeek 后，运行 `omnilaw-evolution chat` 即可直接输入“你好”“我刚才说了什么”或
+“帮我看看当前任务状态”。不再要求所有输入都是固定命令。源码环境可使用：
+
+```bash
+.venv/bin/omnilaw-evolution chat
+```
+
+会话保存在本地 SQLite 中，默认进入 `default` 会话并恢复上下文。`/new` 开始新会话且保留旧记录，
+`/history` 查看最近记录，`chat --session <名称>` 切换会话，`/exit` 或 Ctrl-D 退出。
+每次携带最近 20 轮、按完整轮次裁剪到配置的历史字符额度；这不是无限长期记忆。
+终端支持行编辑、当前进程内的上下键历史，以及 Ctrl-C 中断当前回复。
+
+模型可以调用项目工具查询状态、报告、预算，提交研究和反馈，或请求管理操作；工具仍走原有权限检查。
+采用和回滚需要用户亲自输入 `/confirm <码>`。每轮最多调用 3 次工具，再生成最终回复。
+`/status`、`/queue` 等命令及原有中文命令仍直接执行，不消耗模型调用。
+聊天与后台研究共享每日费用账本；DeepSeek 请求在发送前原子预占保守费用，成功后结算，
+避免聊天和后台任务同时读取相同余额。该控制台没有通用 shell、任意文件编辑或网页浏览工具。
+飞书目前仍使用固定命令入口。
+
+会话与工具循环参考本地 Hermes Agent 的 `agent/conversation_loop.py`、
+`agent/turn_request_assembly.py`、`agent/turn_tool_validation.py` 及 `cli.py` 的职责划分，
+参考提交 `6dca67ed4dc5d11fb08e949737f69ed1a0737a7a`（MIT）：
+[Hermes Agent](https://github.com/NousResearch/hermes-agent/tree/6dca67ed4dc5d11fb08e949737f69ed1a0737a7a)。
+这里独立实现适合本项目的小型循环，没有复制 Hermes 源码或引入其运行时。
+
 ### 真实能力（0.3.0）
 
 ```bash
@@ -130,6 +157,35 @@ omnilaw-evolution env                      # 在生成的文件里填 ANTHROPIC_
 每次调用前先精确计数输入 token，按最坏情况检查当日上限；没配价格就拒绝调用。
 编程执行器可改为 `"executor": {"kind": "claude-code"}`：它在候选目录里以无头模式调用 `claude` CLI，
 同样受沙箱（禁读评测目录、写入限于候选目录）和范围守卫约束。
+
+### DeepSeek 接入
+
+核心也支持 DeepSeek，无需安装额外 SDK。在本地 `omnilaw.json` 中配置：
+
+```json
+{
+  "model": {
+    "provider": "deepseek",
+    "model": "deepseek-flash",
+    "api_key_env": "DEEPSEEK_API_KEY",
+    "max_tokens": 4096,
+    "context_tokens": 1048576,
+    "timeout_seconds": 120,
+    "price_per_mtok": {"input": 0.3, "output": 1.2}
+  },
+  "budget": {"max_daily_cost_usd": 5}
+}
+```
+
+运行 `omnilaw-evolution env`，在仓库外的 `~/.config/omnilaw-evolution/env` 中填写
+`DEEPSEEK_API_KEY`，文件权限保持 `600`；CLI 会自动读取。用 `omnilaw-evolution doctor` 检查配置。
+DeepSeek 用于知识抽取与方案规划；`executor.kind=template` 仍由模板生成候选代码。
+
+上述价格按 2026-10-26 [官方价格表](https://api-docs.deepseek.com/quick_start/pricing/)
+的 Flash 高峰、输入缓存未命中费率配置；本地账本保守计费，实际账单可能更低。
+调用前按完整上下文容量加最大输出检查预算，因此剩余额度不足一次保守估算时会提前停止。
+模型或价格调整后应同步更新配置。HTTP 传输失败或响应缺少用量时按保守估算记账，不自动重试。
+JSON 输出还需通过本地 schema 校验。DeepSeek 使用原子额度预占；其他供应商仍沿用现有费用检查机制。
 
 ## 采用规则（默认，可在配置中修改）
 

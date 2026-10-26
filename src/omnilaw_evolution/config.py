@@ -68,6 +68,9 @@ DEFAULTS = {
     # dir: absolute, or relative to project_root; default <state_dir>/journal.
     "journal": {"dir": None, "max_patch_lines": 120},
     "chat": {
+        "history_turns": 20,
+        "max_context_chars": 60000,
+        "max_tool_rounds": 3,
         "allowed_users": [],                # chat user ids allowed to use read-only commands
         "admins": [],                       # ids allowed to stop/resume/apply/rollback
         "confirm_ttl_seconds": 600,

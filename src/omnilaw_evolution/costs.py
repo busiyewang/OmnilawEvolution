@@ -64,3 +64,25 @@ class SpendGuard:
     def record(self, usd):
         self.spent_today()
         self.db.execute("UPDATE budget_ledger SET cost_usd = COALESCE(cost_usd, 0) + ? WHERE day=?", (float(usd or 0), today()))
+
+    def reserve(self, usd):
+        """Atomically book a worst-case amount before a DeepSeek call.
+
+        A crash leaves the conservative amount booked. Settlement uses the
+        reservation day even if the request finishes after midnight.
+        """
+        day = today()
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            self.check(usd)
+            self.db.execute("INSERT OR IGNORE INTO budget_ledger(day) VALUES (?)", (day,))
+            self.db.execute("UPDATE budget_ledger SET cost_usd=COALESCE(cost_usd,0)+? WHERE day=?", (usd, day))
+            self.db.execute("COMMIT")
+        except BaseException:
+            self.db.execute("ROLLBACK")
+            raise
+        return day
+
+    def settle(self, day, reserved, actual):
+        self.db.execute("UPDATE budget_ledger SET cost_usd=COALESCE(cost_usd,0)+? WHERE day=?",
+                        (actual - reserved, day))

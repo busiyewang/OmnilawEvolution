@@ -228,16 +228,38 @@ def cmd_schedule(args):
 
 
 def cmd_chat(args):
-    from .chat import ChatRouter
+    from .conversation import Conversation
     cfg, db = _ctx(args)
-    router = ChatRouter(db, cfg)
-    if args.text:
-        print(router.handle(args.user, " ".join(args.text), channel="cli" if args.user == "local" else "test"))
-        return
-    print("omnilaw chat — 输入“帮助”查看命令，Ctrl-D 退出")
-    for line in sys.stdin:
-        if line.strip():
-            print(router.handle(args.user, line, channel="cli"))
+    interactive = sys.stdin.isatty() and not args.text
+    chat = Conversation(db, cfg, user=args.user, session=args.session,
+                        on_event=(lambda msg: print("  · " + msg, flush=True)) if interactive else None)
+    try:
+        if args.text:
+            print(chat.handle(" ".join(args.text)))
+            return
+        if interactive:
+            try:
+                import readline  # standard-library line editing and in-process history
+            except ImportError:
+                pass
+        print("Omnilaw · %s · 会话 %s" % (cfg["model"]["model"], chat.session))
+        print("直接输入消息即可聊天。/help 帮助，/new 新会话，/history 记录，/exit 或 Ctrl-D 退出。")
+        while True:
+            try:
+                line = input("\n你 > " if interactive else "")
+            except EOFError:
+                break
+            except KeyboardInterrupt:
+                print("\n输入 /exit 退出。")
+                continue
+            if line.strip() in ("/exit", "/quit", "exit", "quit", "退出"):
+                break
+            if line.strip():
+                reply = chat.handle(line)
+                print("\nOmnilaw > " + reply if interactive else reply, flush=True)
+    finally:
+        chat.close()
+        db.close()
 
 
 def cmd_feedback(args):
@@ -420,9 +442,10 @@ def build_parser():
     p.add_argument("--cron", help='five fields, e.g. "0 8 * * *"')
     p.add_argument("--kind", choices=KINDS)
     p.add_argument("--payload", help="JSON payload")
-    p = add("chat", cmd_chat, "chat commands locally (one-shot or REPL)")
+    p = add("chat", cmd_chat, "natural conversation and project commands (one-shot or REPL)")
     p.add_argument("text", nargs="*")
     p.add_argument("--user", default="local")
+    p.add_argument("--session", default="default", help="persistent conversation name; default resumes the local chat")
     p = add("feedback", cmd_feedback, "record feedback or label an item")
     p.add_argument("--text")
     p.add_argument("--item")
