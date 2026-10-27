@@ -1,0 +1,8 @@
+{"level": "info", "msg": "start"}
+{"level": "ERROR", "msg": "boom"}
+not json at all
+{"level": "Info", "msg": "tick"}
+{"msg": "no level"}
+{"level": "warn", "msg": "slow"}
+{"level": "error", "msg": "again"}
+{"level": "INFO", "msg": "stop"}

@@ -1,0 +1,8 @@
+{
+  "title": "清洗 CSV",
+  "category": "data",
+  "skills": [],
+  "instruction": "清洗 messy.csv，输出 clean.csv（表头保持 name,date,city）：\n去掉每个字段首尾空白；日期统一为 YYYY-MM-DD（原始格式有 2024/03/05、05.03.2024（日.月.年）、2024-03-05、March 5, 2024）；\n清洗后完全相同的行只保留第一次出现的；保持原顺序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

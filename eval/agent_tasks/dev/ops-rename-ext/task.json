@@ -1,0 +1,10 @@
+{
+  "title": "批量改扩展名",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "把 photos/ 目录（含子目录）下所有扩展名为 .jpeg 的文件（不区分大小写）改名为同名的 .jpg 文件，内容不变；其他文件不要动。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

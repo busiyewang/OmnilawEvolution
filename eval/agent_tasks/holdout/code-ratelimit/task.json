@@ -1,0 +1,11 @@
+{
+  "title": "令牌桶限流",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 ratelimit.py 中实现 RateLimiter(rate, capacity, clock=time.monotonic)：令牌桶算法，初始为满，\n每秒连续补充 rate 个令牌，最多 capacity 个；allow() 有令牌时消耗 1 个并返回 True，否则返回 False。\nclock 参数用于测试注入时间。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,11 @@
+{
+  "title": "flatten 不递归",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "utils.py 的 flatten 只展开了一层。请修复：任意深度的 list 和 tuple 都要展开，字符串当作整体，不要拆成字符。\n例如 flatten([1, [2, (3, 4)], [[5]]]) == [1, 2, 3, 4, 5]。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

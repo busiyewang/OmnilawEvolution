@@ -1,0 +1,11 @@
+{
+  "title": "罗马数字互转",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 roman.py 中实现 to_roman(n) 和 from_roman(s)，范围 1..3999。\n超出范围的整数、非标准写法（如 'IIII'、'IC'、'VX'）和空字符串都抛出 ValueError。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

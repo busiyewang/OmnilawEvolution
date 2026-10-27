@@ -1,0 +1,8 @@
+{
+  "title": "用户订单汇总",
+  "category": "data",
+  "skills": [],
+  "instruction": "根据 users.csv 和 orders.csv 生成 summary.csv，表头为 name,orders,total：\n每个用户一行（没有订单的用户也要列出，orders 为 0，total 为 0.00），total 保留两位小数，\n按 total 从高到低排序，相同时按 name 升序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

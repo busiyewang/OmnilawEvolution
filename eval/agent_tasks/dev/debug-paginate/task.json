@@ -1,0 +1,11 @@
+{
+  "title": "分页函数越界",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "pager.py 里的分页函数有 bug：用户反馈请求第 1 页拿到的是第 2 页的数据，总页数也算错了。\n请修复 paginate 和 page_count：page 从 1 开始；最后一页可以不满；n 为 0 时共 0 页；超出范围的页返回空列表。\n不要改函数签名。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

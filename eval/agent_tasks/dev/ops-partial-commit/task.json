@@ -1,0 +1,10 @@
+{
+  "title": "只提交部分改动",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "这是一个 Git 仓库。把 src/ 目录下的所有改动（包括新文件）提交为一个 commit，提交信息为 \"feat: add util helpers\"。\nnotes.txt 的改动不要提交，保留在工作区。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

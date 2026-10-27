@@ -1,0 +1,11 @@
+{
+  "title": "遍历时删除键",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "clean.py 的 remove_empty 运行时报 RuntimeError: dictionary changed size during iteration。\n请修复：递归删除值为 None、''、[] 或 {} 的键；子字典清理后若变成空的也要删除；0 和 False 保留；返回原字典对象。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,8 @@
+{
+  "title": "回文判断",
+  "category": "guard",
+  "skills": [],
+  "instruction": "在 pal.py 中实现 is_palindrome(s)：忽略大小写和所有非字母数字字符，判断是否回文。空字符串算回文。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

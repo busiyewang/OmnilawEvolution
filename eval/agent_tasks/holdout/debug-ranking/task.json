@@ -1,0 +1,11 @@
+{
+  "title": "并列排名顺序",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "ranking.py 的 rank_players 在分数相同时顺序不稳定。要求：按分数从高到低，分数相同按名字字母升序。\n另外 top(scores, n) 应返回前 n 名，n 大于人数时返回全部。请修复。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

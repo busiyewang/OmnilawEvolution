@@ -1,0 +1,10 @@
+{
+  "title": "最大的三个文件",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "找出 data/ 目录（含子目录）中最大的 3 个文件，写入 largest.txt，每行 \"字节数<TAB>相对于 data/ 的路径\"，\n按大小降序，大小相同按路径升序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,10 @@
+{
+  "title": "TODO 清单",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "找出当前目录下所有文件中的 TODO 注释（形如 \"TODO: 内容\"），跳过 vendor/ 目录，\n写入 todo_report.txt，每行格式为 \"相对路径:行号: 内容\"（内容为 \"TODO:\" 之后去掉首尾空白的文本），\n按路径、再按行号排序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,8 @@
+{
+  "title": "按说明生成配置",
+  "category": "guard",
+  "skills": [],
+  "instruction": "按 README.md 的说明生成 config.json。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

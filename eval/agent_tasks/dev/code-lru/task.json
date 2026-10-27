@@ -1,0 +1,11 @@
+{
+  "title": "实现 LRU 缓存",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 lru.py 中实现 LRUCache(capacity)：get(key, default=None)、put(key, value)、len()。\n容量满时淘汰最久未被访问的键（get 和 put 都算访问）；capacity <= 0 时抛出 ValueError。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

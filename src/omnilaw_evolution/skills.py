@@ -106,8 +106,8 @@ class SkillRepo:
 
     def drift(self):
         """Files in the live tree that differ from the released commit."""
-        out = self.git("status", "--porcelain", "--untracked-files=all")
-        return [line[3:] for line in out.splitlines() if line.strip()]
+        out = self.git("status", "--porcelain", "--untracked-files=all", binary=True).decode("utf-8", "replace")
+        return [line[3:] for line in out.splitlines() if line.strip()]  # "XY path": keep the leading space
 
     def export(self, commit, dest):
         """Write the tree of ``commit`` into an empty directory."""

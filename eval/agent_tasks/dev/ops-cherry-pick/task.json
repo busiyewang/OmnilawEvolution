@@ -1,0 +1,10 @@
+{
+  "title": "从标签建分支并摘取提交",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "这是一个 Git 仓库。从标签 v1.0 创建分支 feature/greeting，并只把 dev 分支上提交信息为 \"add greeting\" 的那个提交\ncherry-pick 过来（dev 上的其他提交不要）。完成后停留在 feature/greeting 分支上。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,7 @@
+name,date,city
+  Alice ,2024/03/05, Paris
+Bob,05.03.2024,Berlin
+Alice,2024-03-05,Paris
+Carol,"March 5, 2024",  Rome
+Bob, 2024-03-05 ,Berlin
+Dave,2024/12/31,Oslo

@@ -32,6 +32,9 @@ project_command 的 apply/rollback 必须让用户亲自输入 /confirm。不要
 
 
 def main():
+    # ``--oneshot init.json``: unattended evaluation run (agent_eval.py). No stdin
+    # protocol, no project tools; every approval or clarification is declined.
+    oneshot = sys.argv[1:2] == ["--oneshot"]
     wire_in, wire_out = sys.stdin, sys.stdout
     sys.stdout = sys.stderr
     lock = threading.Lock()
@@ -42,13 +45,19 @@ def main():
             wire_out.flush()
 
     def ask(kind, title, **kwargs):
+        if oneshot:
+            return "deny"
         emit("request", kind=kind, title=title)
         raw = wire_in.readline()
         return json.loads(raw).get("answer", "deny") if raw else "deny"
 
     agent = db = None
     try:
-        init = json.loads(wire_in.readline())
+        if oneshot:
+            with open(sys.argv[2], encoding="utf-8") as f:
+                init = json.load(f)
+        else:
+            init = json.loads(wire_in.readline())
         sys.path.insert(0, init["source"])
         import hermes_bootstrap  # noqa: F401 -- includes import-path hardening
         from run_agent import AIAgent
@@ -58,6 +67,8 @@ def main():
         from toolsets import TOOLSETS
         from omnilaw_evolution.agent_web import register_extractor
         register_extractor()
+        if oneshot:
+            init.setdefault("command_schema", None)
 
         def project_command(args, **kwargs):
             request = urllib.request.Request(init["base_url"].removesuffix("/v1") + "/project-command",
@@ -69,27 +80,28 @@ def main():
             except urllib.error.HTTPError as exc:
                 return json.dumps({"error": "项目命令被拒绝：HTTP %d" % exc.code})
 
-        registry.register("project_command", "omnilaw", {
-            "name": "project_command", "description": "查询/操作 Omnilaw 的研究队列、状态、预算、报告、反馈、发布。"
-                "research/feedback 接收文字；report/stop/cancel/resume/apply/rollback 接收编号。"
-                "apply/rollback 仅请求确认，必须由用户亲自输入 /confirm。",
-            "parameters": init["command_schema"]}, project_command)
-        def runtime_info(args, **kwargs):
-            heartbeat = Path(init["state_dir"]) / "daemon/heartbeat.json"
-            try:
-                daemon = json.loads(heartbeat.read_text())
-            except (OSError, ValueError):
-                daemon = None
-            return json.dumps({"time": datetime.now().astimezone().isoformat(), "agent_pid": os.getpid(),
-                "console_pid": init["parent_pid"], "project_root": init["project_root"],
-                "state_dir": init["state_dir"], "python": sys.executable,
-                "model_proxy": init["base_url"], "daemon_heartbeat": daemon,
-                "note": "model_proxy 是本次控制台的临时回环模型接口，不是管理网页。心跳可能过期，请用 terminal 核实进程。"}, ensure_ascii=False)
+        if init["command_schema"] is not None:
+            registry.register("project_command", "omnilaw", {
+                "name": "project_command", "description": "查询/操作 Omnilaw 的研究队列、状态、预算、报告、反馈、发布。"
+                    "research/feedback 接收文字；report/stop/cancel/resume/apply/rollback 接收编号。"
+                    "apply/rollback 仅请求确认，必须由用户亲自输入 /confirm。",
+                "parameters": init["command_schema"]}, project_command)
+            def runtime_info(args, **kwargs):
+                heartbeat = Path(init["state_dir"]) / "daemon/heartbeat.json"
+                try:
+                    daemon = json.loads(heartbeat.read_text())
+                except (OSError, ValueError):
+                    daemon = None
+                return json.dumps({"time": datetime.now().astimezone().isoformat(), "agent_pid": os.getpid(),
+                    "console_pid": init["parent_pid"], "project_root": init["project_root"],
+                    "state_dir": init["state_dir"], "python": sys.executable,
+                    "model_proxy": init["base_url"], "daemon_heartbeat": daemon,
+                    "note": "model_proxy 是本次控制台的临时回环模型接口，不是管理网页。心跳可能过期，请用 terminal 核实进程。"}, ensure_ascii=False)
 
-        registry.register("runtime_info", "omnilaw", {"name": "runtime_info",
-            "description": "查询本次 Omnilaw 的真实本机 PID、目录、时间、模型代理地址及后台 daemon 心跳。无参数。",
-            "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}, runtime_info)
-        TOOLSETS["omnilaw"] = {"description": "Omnilaw research control", "tools": ["project_command", "runtime_info"]}
+            registry.register("runtime_info", "omnilaw", {"name": "runtime_info",
+                "description": "查询本次 Omnilaw 的真实本机 PID、目录、时间、模型代理地址及后台 daemon 心跳。无参数。",
+                "parameters": {"type": "object", "properties": {}, "additionalProperties": False}}, runtime_info)
+            TOOLSETS["omnilaw"] = {"description": "Omnilaw research control", "tools": ["project_command", "runtime_info"]}
 
         def started(call_id, name, args):
             preview = args.get("command") or args.get("path") or args.get("query") or args.get("action") or ""
@@ -108,7 +120,7 @@ def main():
             max_iterations=init["max_iterations"], run_budget_seconds=init["max_seconds"],
             enabled_toolsets=init["toolsets"], quiet_mode=True, verbose_logging=False,
             session_id=init["session_id"], session_db=db, platform="cli", cwd=init["project_root"],
-            ephemeral_system_prompt=IDENTITY, load_soul_identity=True,
+            ephemeral_system_prompt=init.get("identity", IDENTITY), load_soul_identity=True,
             skip_background_review=True, tool_start_callback=started, tool_complete_callback=completed,
             interim_assistant_callback=lambda text, **kw: emit("event", message=str(text)[:500]),
             clarify_callback=lambda question, *args, **kw: ask("clarify", question))
@@ -116,6 +128,12 @@ def main():
         signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(0)))
         names = [tool["function"]["name"] for tool in agent.tools]
         emit("ready", tools=names, pid=os.getpid())
+        if oneshot:
+            result = agent.run_conversation(init["task"])
+            emit("result", reply=result.get("final_response") or result.get("error") or "",
+                 interrupted=result.get("interrupted", False), error=result.get("error"),
+                 turns=sum(1 for m in result.get("messages", []) if m.get("role") == "assistant"))
+            return
         for line in wire_in:
             request = json.loads(line)
             if request.get("close"):

@@ -1,0 +1,10 @@
+{
+  "title": "撤销最后一次提交",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "这是一个 Git 仓库。撤销最后一次提交（\"oops: add debug output\"），但保留它的改动，并让这些改动处于暂存（staged）状态。\n不要改动更早的提交。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

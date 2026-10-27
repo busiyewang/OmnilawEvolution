@@ -98,5 +98,16 @@
   "background": false,
   "semantic": {
     "enabled": false
+  },
+  "skill_evolution": {
+    "enabled": false,
+    "max_daily_cost_usd": 0,
+    "max_usd_per_run": 0.5,
+    "repeats": {
+      "dev": 2,
+      "holdout": 3
+    },
+    "min_holdout_gain": 2,
+    "max_cost_ratio": 1.3
   }
 }

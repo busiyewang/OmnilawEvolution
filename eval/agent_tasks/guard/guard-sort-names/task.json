@@ -1,0 +1,8 @@
+{
+  "title": "名字排序去重",
+  "category": "guard",
+  "skills": [],
+  "instruction": "整理 names.txt：去掉每行首尾空白和空行、去重，按字母升序（区分大小写）写入 sorted.txt，每行一个。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

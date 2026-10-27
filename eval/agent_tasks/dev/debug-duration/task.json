@@ -1,0 +1,11 @@
+{
+  "title": "时长解析只认一位数字",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "durations.py 的 parse_duration('90m') 返回 0，而不是 5400。请修复：\n支持多位数字和 h/m/s 任意组合（如 '2h15m10s'）；输入为空、或含有无法识别的部分（如 'abc'、'10x'、'5m junk'）时抛出 ValueError。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

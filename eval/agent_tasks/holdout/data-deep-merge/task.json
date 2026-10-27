@@ -1,0 +1,8 @@
+{
+  "title": "配置深度合并",
+  "category": "data",
+  "skills": [],
+  "instruction": "把 override.json 深度合并到 base.json 上，结果写入 merged.json：\n两边都是对象时递归合并；其他类型（包括列表）直接用 override 的值替换；override 中值为 null 的键表示删除该键。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,51 @@
+{
+  "version": "2026-10-26.draft1",
+  "status": "draft",
+  "splits": {
+    "dev": [
+      "debug-paginate",
+      "debug-duration",
+      "debug-mutable-default",
+      "debug-csv-quotes",
+      "code-slugify",
+      "code-lru",
+      "code-roman",
+      "code-intervals",
+      "data-order-summary",
+      "data-log-levels",
+      "data-clean-csv",
+      "data-emails",
+      "ops-partial-commit",
+      "ops-todo-report",
+      "ops-cherry-pick",
+      "ops-rename-ext"
+    ],
+    "holdout": [
+      "debug-flatten",
+      "debug-price-rounding",
+      "debug-dict-mutation",
+      "debug-ranking",
+      "code-wrap",
+      "code-query",
+      "code-toposort",
+      "code-ratelimit",
+      "data-pivot",
+      "data-access-log",
+      "data-deep-merge",
+      "data-grades",
+      "ops-undo-commit",
+      "ops-largest-files",
+      "ops-merge-conflict",
+      "ops-backup-script"
+    ],
+    "guard": [
+      "guard-hello",
+      "guard-count-lines",
+      "guard-syntax",
+      "guard-sort-names",
+      "guard-config-json",
+      "guard-palindrome"
+    ]
+  },
+  "note": "Draft for human review; freeze with `omnilaw-evolution agent-tasks freeze --version <v>`."
+}

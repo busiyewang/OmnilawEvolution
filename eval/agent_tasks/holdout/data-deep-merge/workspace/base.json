@@ -1,0 +1,15 @@
+{
+  "name": "svc",
+  "server": {
+    "host": "0.0.0.0",
+    "port": 80,
+    "tls": {
+      "on": false
+    }
+  },
+  "tags": [
+    "a",
+    "b"
+  ],
+  "debug": true
+}

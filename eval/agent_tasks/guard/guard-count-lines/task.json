@@ -1,0 +1,8 @@
+{
+  "title": "统计非空行",
+  "category": "guard",
+  "skills": [],
+  "instruction": "统计 words.txt 中非空行（去掉空白后不为空）的数量，把数字写入 count.txt。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

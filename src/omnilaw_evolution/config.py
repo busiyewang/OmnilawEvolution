@@ -94,6 +94,7 @@ DEFAULTS = {
         "max_daily_cost_usd": 0,
         "max_usd_per_run": 0.5,
         "baseline_reuse_days": 7,
+        "max_holdout_candidates_per_day": 2,
         "repeats": {"dev": 2, "holdout": 3},
         "min_holdout_gain": 2,              # extra successful runs over the baseline
         "max_cost_ratio": 1.3,              # cost per success, candidate vs baseline

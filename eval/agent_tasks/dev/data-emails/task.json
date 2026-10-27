@@ -1,0 +1,8 @@
+{
+  "title": "提取邮箱",
+  "category": "data",
+  "skills": [],
+  "instruction": "从 notes/ 目录下所有 .txt 文件中提取邮箱地址，转小写、去重、按字母排序，每行一个写入 emails.txt。\n注意句末标点和尖括号不属于邮箱。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

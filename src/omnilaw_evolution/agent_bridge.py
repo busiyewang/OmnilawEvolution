@@ -33,6 +33,7 @@ class AgentBridge:
         self.session = session
         self.run_cap_usd = run_cap_usd
         self.usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "estimated": False}
+        self.refused, self.errors = [], []  # messages only; no request bodies
         self.token = secrets.token_urlsafe(32)
         self.last_messages = []
         self._lock = threading.Lock()
@@ -90,11 +91,13 @@ class AgentBridge:
                     else:
                         self._send(404, {"error": {"message": "Unknown endpoint"}})
                 except SpendRefused as exc:
+                    bridge.refused.append(str(exc))
                     # Non-retriable: do not spend 10 retries on a daily-cap refusal.
                     self._send(402, {"error": {"message": str(exc), "type": "budget_exhausted"}})
                 except (ValueError, TypeError, KeyError) as exc:
                     self._send(400, {"error": {"message": str(exc), "type": "invalid_request_error"}})
                 except (OSError, RuntimeError) as exc:
+                    bridge.errors.append(str(exc)[:200])
                     self._send(400, {"error": {"message": str(exc), "type": "upstream_error"}})
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

@@ -1,0 +1,3 @@
+300	b.bin
+300	sub/c.bin
+200	e.txt

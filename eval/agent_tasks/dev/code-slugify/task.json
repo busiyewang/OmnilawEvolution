@@ -1,0 +1,11 @@
+{
+  "title": "实现 slugify",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "按 README.md 的规格在 slug.py 中实现 slugify(title)。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

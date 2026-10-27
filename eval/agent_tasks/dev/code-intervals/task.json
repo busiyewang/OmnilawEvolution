@@ -1,0 +1,11 @@
+{
+  "title": "合并区间",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 intervals.py 中实现 merge_intervals(intervals)：输入为 [start, end] 列表（无序），\n返回按起点排序的合并结果；首尾相接的区间（[1, 2] 和 [2, 3]）也要合并；不能修改输入；空输入返回 []。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

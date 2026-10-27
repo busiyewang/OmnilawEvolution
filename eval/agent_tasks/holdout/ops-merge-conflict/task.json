@@ -1,0 +1,10 @@
+{
+  "title": "解决合并冲突",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "这是一个 Git 仓库，当前在 main 分支。把 feature 分支合并进 main。config.ini 会产生冲突：\n两个分支新增的配置项都要保留（timeout 和 retries），其余内容不变，然后完成合并提交。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

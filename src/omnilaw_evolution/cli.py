@@ -380,6 +380,73 @@ def cmd_demo2(args):
     run_demo2(args.workdir, report_out=args.report_out, live=not args.offline)
 
 
+def cmd_skills(args):
+    from . import agent_eval, skills
+    cfg, db = _ctx(args)
+    a = args.action
+    if a == "status":
+        return _print(skills.status(db, cfg))
+    if a == "init":
+        repo = skills.ensure_initialized(db, cfg)
+        return _print({"identity": repo.ident, "head": repo.head(), "skills": len(repo.skill_dirs("HEAD"))})
+    if a == "collect":
+        return _print(skills.collect(db, cfg))
+    if a == "propose":
+        if not (args.name and args.file):
+            raise ValueError("propose needs --name and --file")
+        with open(args.file, encoding="utf-8") as f:
+            content = f.read()
+        cid, new = skills.propose_file(db, cfg, args.name, content, args.category, args.note, args.target)
+        return _print({"candidate": cid, "new": new})
+    if a == "rollback":
+        return _print(skills.rollback(db, cfg))
+    if not args.id:
+        raise ValueError("%s needs a candidate id" % a)
+    if a == "show":
+        cand = db.get("skill_candidates", args.id)
+        if not cand:
+            raise LookupError("no skill candidate %d" % args.id)
+        cand["runs"] = db.all("SELECT split, task_id, arm, repeat, success, calls, cost_usd, skills_used "
+                              "FROM agent_evals WHERE candidate_id=? ORDER BY id", (args.id,))
+        return _print(cand)
+    if a == "prepare":
+        return _print(skills.prepare(db, cfg, args.id))
+    if a == "target":
+        skills.set_targets(db, args.id, args.target or [])
+        return _print(db.get("skill_candidates", args.id))
+    if a == "evaluate":
+        return _print(agent_eval.evaluate(db, cfg, args.id))
+    if a == "apply":
+        return _print(skills.apply_candidate(db, cfg, args.id))
+    if a == "discard":
+        skills.discard(db, args.id)
+        return _print(db.get("skill_candidates", args.id))
+
+
+def cmd_agent_tasks(args):
+    from . import agent_eval
+    cfg, db = _ctx(args)
+    if args.action == "list":
+        m = agent_eval.manifest(cfg)
+        out = {"version": m.get("version"), "status": m.get("status"), "splits": {}}
+        for split in agent_eval.SPLITS:
+            out["splits"][split] = [{"id": t["id"], "category": t.get("category"), "skills": t["skills"],
+                                     "title": t.get("title")} for t in agent_eval.load_tasks(cfg, split, verify=False)]
+        return _print(out)
+    if args.action == "check":
+        report = agent_eval.check_suite(cfg)
+        bad = [r for r in report if r.get("problems") or r.get("reference") == "missing"]
+        _print({"tasks": len(report), "problems": bad})
+        if bad:
+            sys.exit(1)
+        return
+    if args.action == "freeze":
+        if not args.version:
+            raise ValueError("freeze needs --version")
+        m = agent_eval.freeze(cfg, args.version)
+        return _print({"version": m["version"], "tasks": len(m["sha256"])})
+
+
 def build_parser():
     ap = argparse.ArgumentParser(prog="omnilaw-evolution", description="Self-evolving research agent (phases 1-2)")
     ap.add_argument("--config", help="config file (default $OMNILAW_CONFIG or ./omnilaw.json)")
@@ -485,6 +552,18 @@ def build_parser():
     p = add("service", cmd_service, "install / uninstall / status of the background service (macOS launchd)")
     p.add_argument("action", choices=["install", "uninstall", "status"])
     p.add_argument("--services", nargs="+", choices=["daemon", "feishu"], default=["daemon"])
+    p = add("skills", cmd_skills, "Hermes skill evolution: candidates, evaluation, release, rollback")
+    p.add_argument("action", choices=["status", "init", "collect", "propose", "show", "prepare", "target",
+                                      "evaluate", "apply", "rollback", "discard"])
+    p.add_argument("id", type=int, nargs="?")
+    p.add_argument("--name")
+    p.add_argument("--file", help="SKILL.md to submit (propose)")
+    p.add_argument("--category")
+    p.add_argument("--note")
+    p.add_argument("--target", nargs="+", help="task categories this candidate should improve")
+    p = add("agent-tasks", cmd_agent_tasks, "agent task suite: list / check checkers (no model) / freeze")
+    p.add_argument("action", choices=["list", "check", "freeze"])
+    p.add_argument("--version")
     p = add("demo2", cmd_demo2, "phase-2 walkthrough: queue, triggers, suppression, cache, chat")
     p.add_argument("--workdir", required=True)
     p.add_argument("--report-out")

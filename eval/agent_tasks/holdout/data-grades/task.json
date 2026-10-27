@@ -1,0 +1,8 @@
+{
+  "title": "成绩平均分",
+  "category": "data",
+  "skills": [],
+  "instruction": "根据 grades.csv（student,subject,score）计算每个学生的平均分，写入 averages.csv（表头 student,average）：\nscore 为空或 N/A 的记录不计；没有任何有效成绩的学生不输出；平均分四舍五入保留两位小数；按 student 升序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,11 @@
+{
+  "title": "默认参数串数据",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "tags.py 中，不传 tags 参数多次调用 add_tag，结果会互相串在一起（第二次调用返回了第一次的标签）。\n请修复。传入列表时，仍然要在原列表上追加并返回同一个列表。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

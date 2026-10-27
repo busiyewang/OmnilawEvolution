@@ -1,0 +1,4 @@
+README.md:2: write usage section
+app/main.py:2: handle errors
+app/main.py:3: log output
+app/util.js:3: remove debug flag

@@ -1,0 +1,11 @@
+{
+  "title": "按宽度折行",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 wrap.py 中实现 wrap_text(text, width)，返回行列表：按单词贪心折行，每行尽量多放单词但长度不超过 width；\n连续空白视为一个分隔；单个单词比 width 长时独占一行、不拆开；空文本返回 []。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

@@ -1,0 +1,11 @@
+{
+  "title": "拓扑排序",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 toposort.py 中实现 topo_sort(deps)：deps 是 {节点: [前置节点, ...]}。返回所有节点（包括只作为前置出现的节点）的顺序，\n前置节点在前；多个节点同时可选时按名字升序；有环时抛出 ValueError。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

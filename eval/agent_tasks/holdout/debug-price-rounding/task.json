@@ -1,0 +1,11 @@
+{
+  "title": "金额四舍五入错误",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "money.py 的 format_price(2.675) 返回 '2.67'，财务要求是 '2.68'。\n请修复：保留两位小数、四舍五入（.5 一律远离零进位，-1.005 -> '-1.01'），带千位分隔符（1234.5 -> '1,234.50'）。\n参数可能是 float、int 或数字字符串。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

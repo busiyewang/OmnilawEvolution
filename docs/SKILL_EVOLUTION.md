@@ -1,6 +1,7 @@
 # Hermes 技能进化：设计方案（待确认）
 
-状态：**提案**，2026-10-26。未实现，未产生任何费用。下面的费用都是估算，第 6 节的试跑用来实测。
+状态：2026-10-26 提出；**步骤 1–3 已实现**（见 §9），任务集为草稿待审核，**未做真实付费试跑，未产生费用**。
+下面的费用都是估算，第 6 节步骤 4 的试跑用来实测。
 
 ## 1. 目标与范围
 
@@ -161,3 +162,39 @@ eval/agent_tasks/<split>/<task-id>/
 2. **预算**：技能评测子上限是否用 $2/天；是否同意花约 $1–2 做试跑（步骤 4）。
 3. **记忆**：保持现状（自由写入，只在日报中列出变化）；或者也改成需要审批（每次写入都要你确认，会打断对话）。
 4. **运行环境**：真实试跑在哪个目录 / 机器上进行（当前目录的配置还是 mock）。
+
+## 9. 实现状态（步骤 1–3）
+
+| 部分 | 文件 | 状态 |
+|---|---|---|
+| 技能版本库：Git 目录放在技能目录之外（`agent/<identity>/skills.git`），随包技能播种一次并作为首个版本 | `skills.py` | ✅ |
+| Hermes 暂存开关：`skill_evolution.enabled` 时会话配置写入 `skills.write_approval: true`；会话关闭时自动收集暂存 | `hermes_runtime.py`、`conversation.py` | ✅ |
+| 候选：收集（去重）→ 用固定版本 Hermes 的 `apply_skill_pending` 在沙箱中重放到已发布版本的副本上 → 候选提交 + 补丁 | `skills.py`、`hermes_skill_apply.py` | ✅ 已用真实 Hermes 代码验证 |
+| 发布 / 回滚：只有 READY 可采用；工作区有手工改动（drift）时拒绝；评测后技能又变化则标为 STALE；回滚是新的 revert 提交 | `skills.py` | ✅ |
+| 评测运行器：每次运行使用全新的临时目录、技能快照、空记忆；`hermes_worker.py --oneshot` 无人值守，审批与澄清一律拒绝，不加载项目命令 | `agent_eval.py`、`hermes_worker.py` | ✅ 已用真实 Hermes 循环（模拟模型回复）验证 |
+| 沙箱：只能写临时目录；网络只开放本次模型中转的端口；不能读 `eval/`、真实技能与记忆、状态库、凭据目录 | `sandbox.py`、`skills.protected_reads` | ✅ 有探测测试（读评测文件、连外网均被拒绝） |
+| 费用：每次运行一个中转实例，统计实际花费；单次运行上限 `max_usd_per_run`；评测每日子上限 `skill_evolution.max_daily_cost_usd`（默认 0，即不允许付费评测）；全局上限照旧生效 | `agent_bridge.py`、`agent_eval.py` | ✅ |
+| 判定：开发集配对比较（候选成功次数 ≥ 基线且 > 0）→ 保留集 + 守卫任务（§4.4 三条规则）；基线结果 7 天内复用；保留集每天最多评 2 个候选；预算不足时暂停回到 PREPARED，已跑的结果保留 | `agent_eval.py` | ✅ |
+| 任务集草稿：开发 16 + 保留 16 + 守卫 6；四类（调试、编码、文件与数据、终端与 Git）每类在开发和保留集中各 4 个；Git 类任务由 `setup.py` 在运行时建仓库 | `scripts/build_agent_tasks.py` → `eval/agent_tasks/` | ✅ 每个判定脚本都验证过：初始状态判失败、参考解判通过 |
+| 命令行 | `skills …`、`agent-tasks list/check/freeze` | ✅ |
+| 测试 | `tests/test_skills.py`、`tests/test_agent_eval.py` | ✅ Python 3.9 / 3.13 / 3.14（3.14 含真实 Hermes 的两项） |
+
+与 §4 设计的差异：
+
+* **后台复盘没有打开**。现有 Hermes 接入一直是 `skip_background_review=True`；打开会让每轮对话多出模型调用。
+  目前只有对话中模型主动调用 `skill_manage` 的写入会被暂存成候选。
+* **失败驱动的候选生成（§4.5 ②）尚未实现**，目前候选来自 Hermes 暂存和人工提交。
+* **日报中的“技能”一节（步骤 6）尚未实现。**
+* 聊天命令尚未接入，目前只有命令行。
+
+### 任务集审核要点
+
+任务全部定义在 `scripts/build_agent_tasks.py` 一个文件里，便于审核。审核时请看：
+
+1. 任务是否接近你实际让智能体做的事；哪些该删、该加。
+2. 每个任务的说明是否足够明确，判定是否过严（例如要求输出格式完全一致）。
+3. `skills` 字段（任务与哪些技能相关）是否合理：它决定了某个技能改动会在哪些任务上评测。
+   “文件与数据”类目前没有对应的随包技能，相关候选需要用 `skills target <id> data` 指定类别。
+
+审核通过后执行 `omnilaw-evolution agent-tasks freeze --version <版本>`，之后任务被修改会被检测到；
+保留集评测只在冻结后才允许。

@@ -30,6 +30,7 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 | Claude 模型适配器（`anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现并有离线测试；尚未完成对应供应商的真实付费验收 |
 | 飞书：回调模式 + 长连接模式（`lark-oapi`，无需公网地址） | ⚠️ 已实现，**等待应用凭据**，未连接真实租户 |
 | 后台服务（launchd） | ✅ **已在本机安装并运行**；`service install/uninstall/status` |
+| Hermes 技能进化（技能版本库、暂存收集、智能体任务评测、发布 / 回滚） | ⚠️ 机制已实现并测试（模拟模型 + 真实 Hermes 循环）；38 个任务为**草稿待审核**，未做真实付费试跑，默认关闭（见 `docs/SKILL_EVOLUTION.md`） |
 | 自动采用 | ⏳ 第三阶段；默认关闭 |
 
 演示用的是**离线模拟模型**（模式匹配 + 固定规划）和**模板执行器**（代码来自 `templates.py`，不是模型写的），
@@ -169,6 +170,19 @@ omnilaw-evolution schedule add --name daily-journal --cron "0 21 * * *" --kind j
 
 接入细节、真实结果和剩余步骤见 [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)。
 
+### Hermes 技能进化（草稿阶段）
+
+```bash
+omnilaw-evolution agent-tasks list | check          # 任务集清单；check 不调用模型，验证每个判定脚本能判失败也能判通过
+omnilaw-evolution skills init | status | collect    # 技能版本库；把 Hermes 暂存的技能改动收成候选
+omnilaw-evolution skills propose --name X --file SKILL.md [--category C] [--target data]
+omnilaw-evolution skills prepare <id>               # 用 Hermes 自带代码在沙箱中重放，生成候选提交
+omnilaw-evolution skills evaluate <id>              # 开发集筛选 → 保留集 + 守卫任务决定（需 skill_evolution 费用上限 > 0）
+omnilaw-evolution skills apply <id> | rollback      # 人工采用 / 回滚（Git 提交）
+```
+
+设计、规则与费用估算见 [`docs/SKILL_EVOLUTION.md`](docs/SKILL_EVOLUTION.md)。
+
 触发、抑制、缓存、复查、权限与飞书接入的说明见 [`docs/PHASE2.md`](docs/PHASE2.md)。
 
 ### 可选 Anthropic 研究适配器
@@ -245,10 +259,12 @@ JSON 输出还需通过本地 schema 校验。DeepSeek 使用原子额度预占�
 src/omnilaw_evolution/   核心实现（见 docs/DESIGN.md §4）
   collector/             被进化的真实模块：pipeline.py（日报）→ dedup.py
 eval/                    受保护的评测数据（dev / holdout / batch2 + MANIFEST）
+eval/agent_tasks/        智能体任务集（草稿）：dev / holdout / guard，由 scripts/build_agent_tasks.py 生成
 fixtures/sources/        三类来源的固定快照 + 一个对抗性注入页面
 fixtures/batches/        日报输入快照
 scripts/build_datasets.py  离线构建正式评测 / 虚构演示数据
 scripts/import_pawsx.py    从固定版本 TSV 导入可溯源公开样本
+scripts/build_agent_tasks.py  生成智能体任务集（每个任务的说明、初始文件、判定脚本、参考解）
 fixtures/discovery/      录制的 arXiv 检索结果（摘要级），用于离线回放增量发现
 tests/                   单元 + 端到端 + 红队 + 真实能力接入 + 数据溯源与评测版本测试
 reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
@@ -256,6 +272,7 @@ reports/demo2/           第二阶段演示报告（中文）
 docs/DESIGN.md           当前设计、Hermes 源码复用决策、运行要求、权限边界与局限
 docs/ARCHITECTURE.md     研究流程、本地工具循环、进程通信、会话恢复、费用控制与设计模式
 docs/PHASE2.md           第二阶段历史：触发、抑制、缓存、复查、预算、命令与飞书接入
+docs/SKILL_EVOLUTION.md  Hermes 技能进化：设计、采用规则、费用估算、实现状态
 docs/INTEGRATIONS.md     当前配置、安装升级、DeepSeek / Hermes 接入与验收；历史语义实验
 docs/deploy/             launchd / systemd / crontab 示例（未安装）
 ```

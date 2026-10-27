@@ -1,0 +1,11 @@
+{
+  "title": "CSV 引号内逗号",
+  "category": "debugging",
+  "skills": [
+    "systematic-debugging",
+    "python-debugpy"
+  ],
+  "instruction": "report.py 的 total_amount('data.csv') 结果不对：部分公司名里带逗号（按 CSV 规范用双引号括起来）。\n请修复 load_rows，使它能正确解析标准 CSV（包括引号内的逗号和转义的双引号）。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

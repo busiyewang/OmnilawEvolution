@@ -1,0 +1,8 @@
+{
+  "title": "Hello 脚本",
+  "category": "guard",
+  "skills": [],
+  "instruction": "写一个 hello.py，运行时输出一行 \"Hello, Omnilaw\"。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

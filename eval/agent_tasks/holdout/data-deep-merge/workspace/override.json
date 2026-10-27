@@ -1,0 +1,14 @@
+{
+  "server": {
+    "port": 8080,
+    "tls": {
+      "on": true,
+      "cert": "x.pem"
+    }
+  },
+  "tags": [
+    "c"
+  ],
+  "debug": null,
+  "new": 1
+}

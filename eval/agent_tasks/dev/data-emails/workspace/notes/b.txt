@@ -1,0 +1,2 @@
+cc: carol.smith+news@mail.example.org, bob@example.com
+not-an-email@ and @nope

@@ -1,0 +1,8 @@
+{
+  "title": "日志级别计数",
+  "category": "data",
+  "skills": [],
+  "instruction": "app.log 每行是一条 JSON 日志（字段 level）。统计每个级别的条数写入 levels.json（对象：级别 -> 条数）。\n级别统一为大写；无法解析的行和缺少 level 的行跳过。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

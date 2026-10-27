@@ -1,0 +1,10 @@
+{
+  "title": "备份脚本",
+  "category": "ops",
+  "skills": [
+    "github"
+  ],
+  "instruction": "编写可执行脚本 backup.sh：把 docs/ 目录打包为当前目录下的 backup.tar.gz（包内路径以 docs/ 开头），排除所有 .tmp 文件。\n写好后运行一次，生成 backup.tar.gz。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

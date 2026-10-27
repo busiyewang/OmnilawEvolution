@@ -1,0 +1,11 @@
+{
+  "title": "解析查询字符串",
+  "category": "coding",
+  "skills": [
+    "test-driven-development",
+    "spike"
+  ],
+  "instruction": "在 query.py 中实现 parse_query(qs)，返回 dict，每个键对应值列表（按出现顺序）。\n规则：忽略开头的 '?'；按 '&' 分割、跳过空段；没有 '=' 的键值为 ''；'+' 表示空格；支持 %XX（UTF-8）解码；空字符串返回 {}。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

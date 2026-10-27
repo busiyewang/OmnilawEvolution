@@ -1,0 +1,8 @@
+{
+  "title": "销售透视表",
+  "category": "data",
+  "skills": [],
+  "instruction": "把 sales.csv（date,region,amount）汇总成 pivot.csv：第一列 month（YYYY-MM），其余每列是一个地区（按地区名升序），\n值为该月该地区 amount 之和，保留两位小数，没有数据填 0.00；按月份升序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}

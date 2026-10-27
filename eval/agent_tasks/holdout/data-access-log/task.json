@@ -1,0 +1,8 @@
+{
+  "title": "访问日志 Top 路径",
+  "category": "data",
+  "skills": [],
+  "instruction": "分析 access.log（常见日志格式），统计请求次数最多的 3 个路径（去掉查询字符串），\n写入 top_paths.json：[{\"path\": ..., \"count\": ...}, ...]，按次数降序，次数相同按路径升序。",
+  "max_turns": 20,
+  "max_seconds": 300
+}
