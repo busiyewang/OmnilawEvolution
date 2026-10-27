@@ -1,10 +1,14 @@
 # Omnilaw Evolution — 设计与选型
 
-版本 0.3.0，更新于 2026-10-26，对应 Hermes 集成提交 `2bb576b`。
+版本 0.3.0，更新于 2026-10-26，对应技能进化提交 `f164f23`（Hermes 集成为 `2bb576b`）。
 
 当前系统包含两个执行流程：**本地智能体**使用 Hermes 的真实 `AIAgent` 循环和工具完成用户委托的任务；
 **后台研究系统**继续按来源、知识、提案、候选、评测、人工采用的流程改进去重模块。
 二者通过 `project_command` 和每日费用账本衔接，执行权限与发布规则分别管理。
+
+进化对象有两个：去重模块 `collector/dedup.py`（代码），以及本地智能体的 **Hermes 技能文件**（文本）。
+技能进化默认关闭；开启后 Hermes 不再直接改技能，而是暂存改动，经智能体任务评测和人工确认后才发布。
+设计、规则与费用估算见 [SKILL_EVOLUTION.md](SKILL_EVOLUTION.md)。
 进程关系、消息循环和存储设计见 [ARCHITECTURE.md](ARCHITECTURE.md)；
 部署与验收记录见 [INTEGRATIONS.md](INTEGRATIONS.md)；第二阶段历史设计见 [PHASE2.md](PHASE2.md)。
 
@@ -21,6 +25,7 @@
 | 本机工具 | 当前用户权限的终端、文件和进程；浏览器另需 Chrome / Chromium，使用独立无头配置 |
 | 本地状态 | `omnilaw.json` 与 `.omnilaw/` 均被 Git 忽略；Key 在仓库外的凭据文件中 |
 | 费用与后台 | 本机授权上限为每天 $5，`background=true`、`auto_apply=false`；发行默认仍是 mock、零付费额度、后台关闭 |
+| 技能进化 | 默认 `skill_evolution.enabled=false`，评测子上限 `max_daily_cost_usd=0`（不允许付费评测）；任务集为待审核草稿 |
 
 `chat.engine=hermes` 仅在 `model.provider=deepseek`、`user=local`、`channel=cli` 时启用本机工具。
 依赖缺失会返回安装提示；`chat.engine=basic` 可显式使用只有项目命令工具的聊天模式。
@@ -125,10 +130,17 @@ src/omnilaw_evolution/
   agent_web.py       本地 HTML / 文本提取提供者，限制下载并检查重定向地址
   costs.py          共享费用守卫；DeepSeek 调用前原子预占，返回有效 usage 后结算
   _vendor/          固定 Hermes 源码包、sha256 清单、上游许可证与适配说明
+
+  # 技能进化（2026-10-26，详见 docs/SKILL_EVOLUTION.md）
+  skills.py              技能版本库（技能目录外的独立 Git 目录）、暂存收集、候选准备 / 发布 / 回滚
+  hermes_skill_apply.py  在沙箱中用固定版 Hermes 的 apply_skill_pending 重放一次暂存的技能写入
+  agent_eval.py          智能体任务评测：任务集加载与冻结、单次沙箱运行、判定、配对比较与采用规则
 ```
 
-数据：主 SQLite 当前为 **schema v6**，保留研究、队列、日程、账本、通知等表，
-v5 增加 `chat_turns`，v6 增加 `agent_sessions`，均为新增迁移。
+任务集位于 `eval/agent_tasks/`（dev / holdout / guard），由 `scripts/build_agent_tasks.py` 生成。
+
+数据：主 SQLite 当前为 **schema v7**，保留研究、队列、日程、账本、通知等表，
+v5 增加 `chat_turns`，v6 增加 `agent_sessions`，v7 增加 `skill_candidates`、`skill_releases`、`agent_evals`，均为新增迁移。
 `chat_turns` 保存逐轮工具与文字记录，`agent_sessions` 保存恢复所需的完整或压缩后上下文。
 Hermes 的 `sessions.db`、记忆和技能按用户与渠道共享；运行时配置与日志按会话分开。
 文件保存来源快照、补丁、逐样例结果、日志；Git 保存版本（候选分支 `omnilaw/run-<id>-v<n>`）。
@@ -170,6 +182,21 @@ Hermes 的 `sessions.db`、记忆和技能按用户与渠道共享；运行时�
 * **恢复**：中断不会撤销已发生的文件写入或其他副作用。恢复时缺失的工具结果标为“未知”，
   先检查实际状态，不能把上下文恢复等同于事务回滚或工具恰好执行一次。
 
+### 5.3 技能候选与智能体评测
+
+* **写入暂存**：开启技能进化后，会话配置写入 Hermes 原生的 `skills.write_approval: true`，
+  `skill_manage` 的写入只落到 `<HERMES_HOME>/pending/skills/`；会话关闭时收为候选。暂存内容只当数据保存与重放，不执行。
+* **重放隔离**：候选在已发布版本的副本上用固定版 Hermes 代码重放（沙箱、禁网），生成候选提交；真实技能目录不变。
+* **评测隔离**：每次运行使用新的临时工作目录、技能快照和空记忆；沙箱只允许写临时目录，网络只开放本次模型中转端口，
+  不能读 `eval/`、真实技能与记忆、状态库、凭据目录和 `~/.ssh`。无人值守模式下审批与澄清一律拒绝，不加载项目命令。
+  判定脚本在另一个禁网沙箱中运行，只读工作目录。
+* **费用**：每次运行单独记账并有单次上限；技能评测另有每日子上限，并且仍受全局每日上限和调用次数限制。
+  全局预算拒绝或模型连接失败时，本次运行作废、评测暂停，不计为技能失败。
+* **评测器版本**：覆盖运行器、worker、固定 Hermes 清单与全部任务文件；任务集冻结后，改动会被检测到。
+  保留集评测只在冻结后允许，每天最多评 2 个候选。
+* **发布**：只有 READY 候选可由人采用；真实技能目录有手工改动时拒绝；评测后技能又变化则候选标为 STALE。
+  回滚是新的 revert 提交，可追溯。
+
 ## 6. 已知局限
 
 * 演示仍使用虚构小数据集（26 / 28 / 16 条）。正式评测已扩展为 266 / 268 / 256 条，加入固定版本的
@@ -185,3 +212,6 @@ Hermes 的 `sessions.db`、记忆和技能按用户与渠道共享；运行时�
   网络结果不明、进程崩溃或缺少有效 usage 时保留保守金额，不能把账本直接当作供应商结算单。
 * `sandbox-exec` 已被 Apple 标记为弃用，但在 macOS 14 上可用；Linux `bwrap` 路径未在本机测试。
 * 释放/回滚管理的是本项目自己的 worktree 发布，不是容器；第三阶段如需容器，再接入 Docker。
+* 技能进化：任务集是 38 个小型、可确定性判定的任务，尚未经人工审核，也未做真实付费试跑；单次费用为估算。
+  智能体运行不确定，配对重复次数少，只能识别比较明显的改进。评测在禁网沙箱、空记忆下进行，与真实会话环境不同；
+  第一版不含网页与浏览器任务。Hermes 后台复盘未开启，失败驱动的技能候选生成和日报中的技能记录尚未实现。
