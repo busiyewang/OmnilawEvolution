@@ -46,9 +46,13 @@ def _sb_quote(path):
 
 
 def darwin_profile(deny_read, allow_write, network=False):
+    """``network``: False (none), True (any), or an int port: loopback to that
+    port only (the agent's model bridge)."""
     lines = ["(version 1)", "(allow default)"]
-    if not network:
+    if network is not True:
         lines.append("(deny network*)")
+    if network is not True and network:
+        lines.append('(allow network-outbound (remote ip "localhost:%d"))' % int(network))
     for p in deny_read:
         lines.append("(deny file-read* file-write* (subpath %s))" % _sb_quote(p))
     allowed = " ".join("(subpath %s)" % _sb_quote(p) for p in allow_write)
@@ -65,7 +69,7 @@ def build_command(cmd, mode, deny_read, allow_write, network, scratch):
         return ["sandbox-exec", "-f", profile] + list(cmd)
     if mode == "bwrap":
         args = ["bwrap", "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--die-with-parent"]
-        if not network:
+        if not network:  # a loopback port needs the host namespace; bwrap cannot filter ports
             args.append("--unshare-net")
         for p in deny_read:
             if os.path.isdir(p):

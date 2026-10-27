@@ -17,6 +17,7 @@ import tempfile
 import threading
 import time
 
+from . import skills
 from .agent_bridge import AgentBridge
 
 VENDOR = Path(__file__).with_name("_vendor")
@@ -68,6 +69,23 @@ def worker_environment(home, cwd, bridge):
     return env
 
 
+def hermes_settings(cfg, bridge_url, cwd, max_turns, write_approval):
+    """Upstream config.yaml for one Hermes home. ``write_approval`` stages every
+    skill write under ``<HERMES_HOME>/pending/skills`` instead of saving it."""
+    return {"model": {"provider": "custom", "default": cfg["model"]["model"], "base_url": bridge_url + "/v1",
+                      "context_length": int(cfg["model"].get("context_tokens", 1048576))},
+            "terminal": {"backend": "local", "cwd": cwd, "timeout": 60, "persistent_shell": True},
+            "compression": {"enabled": True, "threshold": 0.65},
+            "web": {"search_backend": "ddgs", "extract_backend": "omnilaw-local"},
+            "browser": {"executable_path": browser_executable(cfg), "headed": False,
+                        "use_real_profile": False, "user_data_dir": ""},
+            "tools": {"tool_search": {"enabled": "off"}},
+            "auxiliary": {"title_generation": {"model_upgrade_enabled": False}},
+            "memory": {"memory_enabled": True, "user_profile_enabled": True},
+            "skills": {"write_approval": bool(write_approval)},
+            "agent": {"max_turns": int(max_turns)}}
+
+
 def browser_executable(cfg):
     configured = cfg["chat"].get("browser_executable")
     if configured:
@@ -87,7 +105,7 @@ class HermesRuntime:
         self.tools = []
         self.last_messages = []
         source = prepare_runtime(cfg)
-        identity = hashlib.sha256(json.dumps([user, channel]).encode()).hexdigest()[:20]
+        identity = skills.identity(user, channel)
         session_id = hashlib.sha256(json.dumps([user, channel, session]).encode()).hexdigest()[:32]
         shared = Path(cfg.subdir("agent", identity))
         home = shared / "sessions" / session_id
@@ -109,23 +127,15 @@ class HermesRuntime:
                             target.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copyfile(path, target)
                 marker.write_text(source.name + "\n")
+        if skills.enabled(cfg):
+            # Staged writes are reviewed against this history (skills.py).
+            skills.SkillRepo(cfg, identity).init()
         if not (home / "state.db").is_symlink():
             (home / "state.db").symlink_to(shared / "sessions.db")
         try:
             self.bridge = AgentBridge(cfg, user, channel, command_schema, session=session)
-            settings = {"model": {"provider": "custom", "default": cfg["model"]["model"],
-                                 "base_url": self.bridge.url + "/v1",
-                                 "context_length": int(cfg["model"].get("context_tokens", 1048576))},
-                        "terminal": {"backend": "local", "cwd": cfg["project_root"], "timeout": 60,
-                                     "persistent_shell": True},
-                        "compression": {"enabled": True, "threshold": 0.65},
-                        "web": {"search_backend": "ddgs", "extract_backend": "omnilaw-local"},
-                        "browser": {"executable_path": browser_executable(cfg), "headed": False,
-                                    "use_real_profile": False, "user_data_dir": ""},
-                        "tools": {"tool_search": {"enabled": "off"}},
-                        "auxiliary": {"title_generation": {"model_upgrade_enabled": False}},
-                        "memory": {"memory_enabled": True, "user_profile_enabled": True},
-                        "agent": {"max_turns": int(cfg["chat"].get("max_iterations", 30))}}
+            settings = hermes_settings(cfg, self.bridge.url, cfg["project_root"],
+                                       int(cfg["chat"].get("max_iterations", 30)), skills.enabled(cfg))
             config_path = home / "config.yaml"
             config_path.write_text(json.dumps(settings, indent=2))  # JSON is valid YAML
             config_path.chmod(0o600)

@@ -141,6 +141,9 @@ class Conversation:
         if self.runtime is not None:
             self.runtime.close()
             self.runtime = None
+            if self.cfg.get("skill_evolution", {}).get("enabled"):
+                from .skills import collect
+                collect(self.db, self.cfg)  # staged skill writes become reviewable candidates
 
     def _agent_context(self):
         row = self.db.one("SELECT messages FROM agent_sessions WHERE owner=? AND channel=? AND session=?",

@@ -24,10 +24,15 @@ from .schema import validate
 
 
 class AgentBridge:
-    def __init__(self, cfg, user, channel, command_schema, session=None):
+    def __init__(self, cfg, user, channel, command_schema, session=None, run_cap_usd=None):
+        """``command_schema=None`` disables project commands (evaluation runs).
+        ``run_cap_usd`` stops serving model calls once this bridge's settled
+        spend reaches it; ``usage`` accumulates what this bridge spent."""
         self.cfg, self.user, self.channel = cfg, user, channel
         self.command_schema = command_schema
         self.session = session
+        self.run_cap_usd = run_cap_usd
+        self.usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0, "estimated": False}
         self.token = secrets.token_urlsafe(32)
         self.last_messages = []
         self._lock = threading.Lock()
@@ -74,7 +79,7 @@ class AgentBridge:
                     data = json.loads(self.rfile.read(length))
                     if not isinstance(data, dict):
                         raise ValueError("Expected a JSON object")
-                    if self.path == "/project-command":
+                    if self.path == "/project-command" and bridge.command_schema is not None:
                         self._send(200, {"result": bridge.project_command(data)})
                     elif self.path.rstrip("/") == "/v1/chat/completions":
                         response = bridge.completion(data)
@@ -126,6 +131,10 @@ class AgentBridge:
         if primary:
             with self._lock:
                 self.last_messages = copy.deepcopy(messages)
+        if self.run_cap_usd is not None:
+            with self._lock:
+                if self.usage["cost_usd"] >= self.run_cap_usd:
+                    raise SpendRefused("本次运行费用已达上限 $%.2f。" % self.run_cap_usd)
         db = DB(self.cfg.db_path)
         llm = DeepSeekLLM(self.cfg, guard=SpendGuard(self.cfg, db))
         day = today()
@@ -150,6 +159,12 @@ class AgentBridge:
             return result
         finally:
             usage = llm.last_usage
+            if usage:
+                with self._lock:
+                    self.usage["calls"] += 1
+                    for k in ("input_tokens", "output_tokens", "cost_usd"):
+                        self.usage[k] += usage.get(k) or 0
+                    self.usage["estimated"] = self.usage["estimated"] or bool(usage.get("estimated"))
             ledger.record({"input_tokens": usage.get("input_tokens", 0),
                            "output_tokens": usage.get("output_tokens", 0)}, tasks=0, day=day)
             db.close()

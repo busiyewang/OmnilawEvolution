@@ -8,11 +8,29 @@ import os
 import sqlite3
 import time
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Migrations keyed by the version they produce. "additive" migrations only add
 # tables/columns, so releases recorded under an older schema stay compatible.
 MIGRATIONS = {
+    7: {"additive": True, "sql": [
+        # Hermes skills as a second evolution target (skills.py, agent_eval.py).
+        """CREATE TABLE IF NOT EXISTS skill_candidates (
+            id INTEGER PRIMARY KEY, identity TEXT NOT NULL, origin TEXT NOT NULL, source_ref TEXT,
+            summary TEXT NOT NULL, payload TEXT NOT NULL, note TEXT, targets TEXT NOT NULL DEFAULT '[]',
+            state TEXT NOT NULL, base_commit TEXT, commit_sha TEXT, changed TEXT NOT NULL DEFAULT '[]',
+            patch_path TEXT, decision TEXT, error TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS skill_releases (
+            id INTEGER PRIMARY KEY, identity TEXT NOT NULL, commit_sha TEXT NOT NULL, candidate_id INTEGER,
+            kind TEXT NOT NULL, previous_id INTEGER, status TEXT NOT NULL, created_at TEXT NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS agent_evals (
+            id INTEGER PRIMARY KEY, candidate_id INTEGER, arm TEXT NOT NULL, skills_tree TEXT NOT NULL,
+            split TEXT NOT NULL, task_id TEXT NOT NULL, task_sha TEXT NOT NULL, evaluator_version TEXT NOT NULL,
+            model TEXT NOT NULL, repeat INTEGER NOT NULL, success INTEGER, calls INTEGER, seconds REAL,
+            input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL, skills_used TEXT NOT NULL DEFAULT '[]',
+            detail TEXT, scratch TEXT, isolation TEXT, created_at TEXT NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS agent_evals_key ON agent_evals(skills_tree, task_sha, evaluator_version, model)",
+    ]},
     6: {"additive": True, "sql": [
         """CREATE TABLE IF NOT EXISTS agent_sessions (
             owner TEXT NOT NULL, channel TEXT NOT NULL, session TEXT NOT NULL,

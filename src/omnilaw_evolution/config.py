@@ -85,6 +85,20 @@ DEFAULTS = {
     # Optional sentence-embedding runtime (collector/semantic.py). A human turns it on
     # after approving the dependency; the pinned model is fetched with `models fetch`.
     "semantic": {"enabled": False},
+    # Hermes skills as a second evolution target (docs/SKILL_EVOLUTION.md). When enabled,
+    # Hermes stages skill writes instead of saving them; they become candidates that
+    # need an agent-task evaluation and a human confirmation. Eval spend has its own
+    # daily cap (0 = no paid evaluation runs) inside budget.max_daily_cost_usd.
+    "skill_evolution": {
+        "enabled": False,
+        "max_daily_cost_usd": 0,
+        "max_usd_per_run": 0.5,
+        "baseline_reuse_days": 7,
+        "repeats": {"dev": 2, "holdout": 3},
+        "min_holdout_gain": 2,              # extra successful runs over the baseline
+        "max_cost_ratio": 1.3,              # cost per success, candidate vs baseline
+        "toolsets": ["terminal", "file", "todo", "skills", "code_execution"],
+    },
     "auto_apply": False,
     "background": False,                    # the daemon refuses to start unless this is true
 }
