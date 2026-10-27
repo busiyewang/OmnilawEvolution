@@ -7,6 +7,8 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 只有满足预先声明的采用条件才可发布，并且可以**验证后回滚**。
 
 第一阶段的进化对象是技术日报采集流程（`collector/pipeline.py`）实际调用的去重模块 `collector/dedup.py`。
+当前本地控制台已集成 Hermes 实际工具循环与 DeepSeek，可执行本机任务、读写代码并根据结果继续修复和验证。
+后台研究仍遵循独立评测与人工采用流程，两者共用项目命令和费用账本。
 
 ## 当前状态（诚实版）
 
@@ -22,8 +24,10 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 | 知识复查（Wikipedia 修订号 / GitHub 分支 / arXiv 版本） | ✅ 已实现；真实联网复查已运行 |
 | 聊天命令（中英文，权限 + 一次性确认码）、反馈标注、通知 outbox | ✅ 已实现并运行 |
 | 语义 / 跨语言去重（多语言句向量，ONNX，固定版本 + 哈希） | ✅ 已实现，**真实模型已在沙箱内运行**；旧版演示 +0.043 未采用的历史结论保留；新版评测已扩充公开样本并支持高分基线的相对改进（见 `eval/README.md`） |
-| 每日费用上限（调用前按最坏情况检查，未知价格拒绝付费调用） | ✅ 已实现并测试（模拟客户端） |
-| Claude 模型适配器（`anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现，**等待 API 密钥与费用上限**，未发出付费请求 |
+| DeepSeek 适配器与持久化自然语言聊天 | ✅ 已接入，真实调用验收通过；本机每日额度 $5，Key 保存在仓库外 |
+| Hermes 本地智能体 | ✅ 直接复用 `AIAgent`；21 个工具已加载，连续执行与修复、会话恢复、网页及浏览器验收见 `docs/INTEGRATIONS.md` §8 |
+| 每日费用上限 | ✅ DeepSeek 调用前原子预占、返回 usage 后结算；聊天与研究共享账本，未知价格拒绝付费调用 |
+| Claude 模型适配器（`anthropic` SDK）与 Claude Code 编程执行器 | ⚠️ 已实现并有离线测试；尚未完成对应供应商的真实付费验收 |
 | 飞书：回调模式 + 长连接模式（`lark-oapi`，无需公网地址） | ⚠️ 已实现，**等待应用凭据**，未连接真实租户 |
 | 后台服务（launchd） | ✅ **已在本机安装并运行**；`service install/uninstall/status` |
 | 自动采用 | ⏳ 第三阶段；默认关闭 |
@@ -37,8 +41,9 @@ Omnilaw Evolution 读取网页、GitHub 源码和论文，把其中适用的方�
 
 ## 快速开始
 
-需要 Python ≥ 3.9 和 Git，核心只用标准库。可选能力需要 Python ≥ 3.10：
-`pip install -e '.[semantic]'`（句向量）、`'.[feishu]'`（飞书长连接）、`'.[anthropic]'`（Claude），或 `'.[all]'`。
+需要 Python ≥ 3.9 和 Git，研究核心只用标准库。可选的句向量、飞书长连接、Claude 接入需要 Python ≥ 3.10：
+`pip install -e '.[semantic]'`、`'.[feishu]'`、`'.[anthropic]'`。
+Hermes 本地智能体需要 **Python 3.14** 和 `'.[agent]'`；若安装 `'.[all]'` 并使用智能体，同样需要 Python 3.14。
 
 ```bash
 git clone git@github.com:busiyewang/OmnilawEvolution.git omnilaw-evolution
@@ -141,12 +146,14 @@ Hermes 依赖缺失时会提示安装，不会悄悄切换成能力不足的聊�
 统一经过只绑定 `127.0.0.1`、使用临时令牌的模型接口。上游模型、价格、最大输出由宿主固定；
 DeepSeek Key 不传给智能体子进程。额度检查不覆盖用户自行通过 shell 发起的外部服务消费。
 
-模型源代码固定在 [Hermes 提交 6dca67e](https://github.com/NousResearch/hermes-agent/tree/6dca67ed4dc5d11fb08e949737f69ed1a0737a7a)，
+智能体源代码固定在 [Hermes 提交 6dca67e](https://github.com/NousResearch/hermes-agent/tree/6dca67ed4dc5d11fb08e949737f69ed1a0737a7a)，
 源码包和 MIT 许可证随项目分发，来源、校验和及唯一的启动器适配见
 [`src/omnilaw_evolution/_vendor/README.md`](src/omnilaw_evolution/_vendor/README.md)。
 不需要本机原有 Hermes 源码目录；不会复制其配置、Key、记忆或用户会话。
 Omnilaw 自己的记忆、技能、会话和运行时位于 `state_dir/agent` 与 `state_dir/runtime`，均不提交 Git。
 浏览器使用 Hermes 的 browser-harness，本机需有可用的 Chromium/Chrome；语音、图片生成、聊天平台和桌面 UI 不在此集成范围。
+进程关系、执行循环、会话恢复与预算设计见 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)；
+安装升级与实测范围见 [`docs/INTEGRATIONS.md`](docs/INTEGRATIONS.md)。
 
 ### 真实能力（0.3.0）
 
@@ -164,7 +171,10 @@ omnilaw-evolution schedule add --name daily-journal --cron "0 21 * * *" --kind j
 
 触发、抑制、缓存、复查、权限与飞书接入的说明见 [`docs/PHASE2.md`](docs/PHASE2.md)。
 
-### 使用真实模型（等待凭据，未发出付费请求）
+### 可选 Anthropic 研究适配器
+
+DeepSeek 已接入并完成真实调用验收，配置见下一节。以下为另一个可选的研究模型与候选执行器路径，
+当前 Hermes 本地智能体的桥接仍使用 DeepSeek。
 
 ```bash
 python3 -m pip install -e '.[anthropic]'   # 需要 Python ≥ 3.10
@@ -220,6 +230,9 @@ JSON 输出还需通过本地 schema 校验。DeepSeek 使用原子额度预占�
 
 ## 安全边界
 
+以下候选隔离规则针对后台研究流程。本地 Hermes 工具使用当前用户权限，具体边界见
+[`docs/DESIGN.md`](docs/DESIGN.md) 第 5 节。
+
 * 候选只能写 `writable_paths`（默认只有 `collector/dedup.py`）；评测器、测试、配置、预算与发布代码受保护。
 * 候选 checkout 用稀疏检出排除 `eval/`；候选代码运行在沙箱里，禁网、禁读评测数据与状态库。
 * 外部网页、论文、仓库文本只作为数据：会被扫描注入特征并标记，从不执行，也不会改动配置；
@@ -240,10 +253,10 @@ fixtures/discovery/      录制的 arXiv 检索结果（摘要级），用于离
 tests/                   单元 + 端到端 + 红队 + 真实能力接入 + 数据溯源与评测版本测试
 reports/demo/            第一阶段演示产物：报告、补丁、日报、来源与知识记录
 reports/demo2/           第二阶段演示报告（中文）
-docs/DESIGN.md           环境核对、参考项目核对与选型、架构、隔离设计、已知局限
-docs/ARCHITECTURE.md     整体架构、设计模式、参考项目的借鉴方式与取舍
-docs/PHASE2.md           第二阶段：触发、抑制、缓存、复查、预算、聊天与飞书接入
-docs/INTEGRATIONS.md     0.3.0：句向量、费用上限、飞书长连接、后台服务；真实结果与剩余步骤
+docs/DESIGN.md           当前设计、Hermes 源码复用决策、运行要求、权限边界与局限
+docs/ARCHITECTURE.md     研究流程、本地工具循环、进程通信、会话恢复、费用控制与设计模式
+docs/PHASE2.md           第二阶段历史：触发、抑制、缓存、复查、预算、命令与飞书接入
+docs/INTEGRATIONS.md     当前配置、安装升级、DeepSeek / Hermes 接入与验收；历史语义实验
 docs/deploy/             launchd / systemd / crontab 示例（未安装）
 ```
 

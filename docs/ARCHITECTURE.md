@@ -1,6 +1,6 @@
 # Omnilaw Evolution — 架构、设计模式与参考项目
 
-版本 0.3.0，2026-10-25。本文回答三个问题：
+版本 0.3.0，更新于 2026-10-26，对应 Hermes 集成提交 `2bb576b`。本文回答三个问题：
 
 1. 项目整体是怎么搭起来的；
 2. 代码里用了哪些设计模式，为什么用；
@@ -9,7 +9,8 @@
 环境实测和选型细节见 [DESIGN.md](DESIGN.md)；第二阶段机制见 [PHASE2.md](PHASE2.md)；真实能力接入见
 [INTEGRATIONS.md](INTEGRATIONS.md)。
 
-核心使用 Python 标准库、SQLite 和 Git；测试覆盖流程、隔离、真实能力接入及评测数据版本管理。
+研究核心使用 Python 标准库、SQLite 和 Git；本地智能体通过 `.[agent]` 安装独立依赖并加载固定版 Hermes 源码。
+测试覆盖研究流程、隔离、真实工具循环、费用桥接、会话恢复及评测数据版本管理。
 
 ---
 
@@ -17,11 +18,12 @@
 
 ### 1.1 一句话
 
-**一个程序在规则约束下改进自己的一个真实模块。**
-它先读外部资料，形成带出处的知识，再据此提出假设，在隔离环境里生成候选代码，用自己改不了的评测器打分。
-只有达到预先写定的条件，才允许人确认发布；发布后可以验证并回滚。
+**一个能完成本机任务的个人智能体，连接一个由评测驱动的研究与发布系统。**
+本地 CLI 使用 Hermes 实际循环完成“调用工具 → 观察结果 → 修正 → 验证”；
+后台研究流程先读资料、形成带出处的知识，再生成和评测候选，达标后由人确认发布，支持验证与回滚。
+本地工具与研究候选具有不同的权限边界，不能把候选沙箱的限制推及整个智能体。
 
-### 1.2 分层
+### 1.2 研究系统分层
 
 ```
 ┌──────────────────────── 入口层 ────────────────────────┐
@@ -52,8 +54,8 @@
 └────────────────────────────────────────────────────────┘
 ```
 
-依赖方向只能**从上往下**。被进化的 `collector/` 不导入编排层的任何东西，所以候选代码运行时完全不知道
-评测器、预算和状态库的存在。
+研究模块按上述方向分层。被进化的 `collector/` 不导入编排层；候选的执行隔离由 `sandbox.py` 提供。
+本地自然语言入口在 `conversation.py`，执行路径见第 1.4 节；原有直接命令仍由 `ChatRouter` 处理。
 
 ### 1.3 一轮完整流程
 
@@ -85,15 +87,136 @@ APPLIED   versions.apply_sha：发布 worktree → 沙箱健康检查 → 原子
 ROLLED_BACK（需要时）：校验 SHA、依赖哈希、schema 兼容、健康检查
 ```
 
-### 1.4 数据
+### 1.4 本地智能体与宿主进程
+
+```mermaid
+flowchart LR
+    U["本地 CLI 用户"] --> C["Conversation<br/>命令路由 / 会话锁 / 历史"]
+    C --> R["HermesRuntime<br/>持久子进程 / JSON-lines"]
+    R --> A["Hermes AIAgent<br/>模型与工具循环"]
+    A --> T["本机终端 / 文件 / 浏览器<br/>记忆 / 技能 / 任务 / 历史"]
+    A --> B["AgentBridge<br/>127.0.0.1 / 临时令牌"]
+    B --> L["DeepSeekLLM + SpendGuard"]
+    L --> D["远端 DeepSeek"]
+    C --> Q["ChatRouter"]
+    B --> Q
+    Q --> W["研究队列 / Worker / Runner"]
+    W --> L
+    L --> DB[("主 SQLite<br/>预算 / 上下文")]
+    B --> DB
+    C --> DB
+    W --> DB
+```
+
+| 组件 | 责任 |
+|---|---|
+| `conversation.py` | 识别命令与自然语言；按用户、渠道、会话加锁；保存每轮消息及恢复上下文 |
+| `hermes_runtime.py` | 校验源码包、准备私有配置、启动并复用 worker；转发进度、澄清、审批和中断 |
+| `hermes_worker.py` | 导入上游 `run_agent.AIAgent`，配置真实工具与会话数据库；注册 Omnilaw 项目工具 |
+| `agent_bridge.py` | 宿主内的临时回环 HTTP 服务；代理模型与项目命令、计数、保存主会话检查点 |
+| `llm.py` / `costs.py` | 只在宿主读取上游 Key；固定模型与输出上限、原子预占费用并结算 usage |
+| `agent_web.py` | 通过 Hermes 提供者接口补充无额外 Key 的 HTML / 文本正文提取 |
+
+`chat.engine=hermes`、`model.provider=deepseek`、`user=local`、`channel=cli` 同时满足时使用本地智能体。
+其他身份不会因此得到 shell；飞书适配器仍将事件交给 `ChatRouter`。
+`basic` 模式仅提供 `project_command`，默认保留最近 20 轮、60,000 字符和每次回复最多 3 次工具调用。
+
+**生命周期**：首次自然语言消息或 `/tools` 按需启动 worker，同一控制台会话内复用；
+`/new`、退出或不可恢复错误时关闭。worker 使用 Omnilaw 当前 Python，不导入用户已有 Hermes 安装或其配置。
+stdout 是 JSON-lines 协议，诊断日志写本地 `worker.log`。
+`Ctrl-C` 请求上游循环中断；关闭时给子进程有限清理时间，必要时终止，并等待在途模型请求结算或超时。
+后台研究 daemon 是独立进程；重启它不会更新已打开的聊天控制台。
+
+**端口与身份**：CLI、worker、daemon 都有本机 PID，但不一定监听端口。
+`runtime_info` 返回本次控制台与 worker PID、目录、当前时间、代理地址和 daemon 心跳；
+心跳可能过期，需用终端核实。模型代理随机绑定 `127.0.0.1` 端口，要求临时令牌，提供
+`/v1/models`、`/v1/chat/completions`、`/project-command`；它不是管理网页。
+
+### 1.5 工具与连续执行
+
+```mermaid
+sequenceDiagram
+    participant C as Conversation
+    participant A as Hermes AIAgent
+    participant B as AgentBridge
+    participant D as DeepSeek
+    participant T as 本地工具
+    C->>A: 用户消息 + 已恢复上下文
+    loop 任务未结束且轮次、时长、费用允许
+        A->>B: 消息与工具定义
+        B->>B: 保存检查点、调用计数、原子费用预占
+        B->>D: 固定宿主配置的模型请求
+        D-->>B: 工具调用或回答 + usage
+        B->>B: 结算费用、保存响应检查点
+        B-->>A: SDK 兼容响应
+        opt 模型要求调用工具
+            A->>T: 执行工具（必要时向用户澄清或确认）
+            T-->>A: 实际结果或错误
+        end
+    end
+    A-->>C: 最终回复、工具记录、压缩后的上下文
+    C->>C: 保存本轮与会话快照
+```
+
+循环直接复用 Hermes，默认 `chat.max_iterations=30`、`chat.max_seconds=900`，上下文压缩阈值为配置容量的 65%。
+工具结果返回后继续推理，错误作为下一轮输入；达到限制或用户中断时结束本轮。
+这使“读代码 → 运行失败 → 修改 → 再运行验证”成为同一任务中的连续操作。
+
+| 工具组 | 已接入工具 |
+|---|---|
+| 本机与进程 | `terminal`、`process_manage`、`runtime_info` |
+| 文件与代码 | `read_file`、`write_file`、`patch`、`search_files`、`execute_code` |
+| 网页与浏览器 | `web_search`、`web_extract`、`browser_exec`、`browser_vault` |
+| 任务协作 | `todo_list`、`clarify`、`delegate_task` |
+| 持久记忆与技能 | `memory`、`skills_list`、`skill_view`、`skill_manage`、`session_search` |
+| 研究系统 | `project_command`（状态、队列、预算、报告、反馈、研究与发布请求） |
+
+工具集在 `hermes_runtime.TOOLSETS` 显式配置，实际可用清单由 `/tools` 输出，不以完整 Hermes 产品功能作为承诺。
+网页搜索使用 DDGS；正文提取使用本地 trafilatura / BeautifulSoup，每次跳转检查地址，
+限制响应大小为 2 MB、请求超时 20 秒和重定向链长度。浏览器使用独立无头 Chrome / Chromium 配置，
+不复用用户已登录的浏览器配置。
+
+`project_command` 只接收通过 schema 校验的命令，身份由宿主决定，并继续经过 `ChatRouter` 权限检查。
+模型不能调用 `confirm`；采用、回滚要用户手动输入 `/confirm`。
+这些检查约束项目命令路径，本地 shell 仍具有当前用户权限，不受候选的 `writable_paths` 沙箱约束。
+
+### 1.6 数据与恢复
 
 | 存储 | 内容 | 原因 |
 |---|---|---|
-| SQLite（WAL） | 来源、知识、提案、运行、事件、评测、发布、失败、任务、日程、账本、缓存、outbox | 单文件、事务、并发读，标准库自带 |
+| 主 SQLite（WAL） | 研究、任务、账本、发布等；`chat_turns` 与 `agent_sessions` | 逐轮记录与可恢复上下文分开保存；当前 schema v6 |
+| Hermes `sessions.db` | 原生会话与历史检索 | 同一用户、渠道共享，支持 `session_search` |
+| `agent/<identity>/memories`、`skills` | 持久记忆、用户与智能体维护的技能 | 同一身份跨会话复用，不覆盖用户已有技能 |
 | 文件 | 来源原文快照、补丁、逐样例结果、日志、报告 | 大对象和需要人读的产物 |
 | Git | 基线、候选分支 `omnilaw/run-<id>-v<n>`、发布 worktree | 版本本来就该交给 Git；补丁、回滚、差异都是现成的 |
 
 schema 只做**纯新增迁移**（`db.MIGRATIONS[v]["additive"]`），所以旧 schema 下记录的发布仍能回滚。
+
+默认状态根目录是 `.omnilaw/state/`：`runtime/<源码哈希前缀>` 缓存校验后的源码；
+`agent/<identity>/sessions/<session-id>` 保存各会话配置与日志，并链接到共享记忆、技能与 `sessions.db`。
+初次准备时仅播种一次随包技能，后续不会复原用户删除的技能。以上内容都在被 Git 忽略的 `.omnilaw/` 内。
+
+`agent_sessions` 以 `(owner, channel, session)` 为键保存当前上下文，包括 Hermes 压缩后的消息。
+桥接在主会话请求前后保存检查点，辅助审核与摘要请求不会覆盖主会话；
+恢复时去掉旧 system 消息，重新使用当前身份提示，缺失工具结果补为“执行被中断，结果未知”。
+这可以恢复对话连续性，但不能恢复已退出的 shell 状态，也不保证中断前的外部操作恰好执行一次。
+
+### 1.7 模型与费用路径
+
+Hermes 的主循环、风险审核、压缩、历史摘要和子智能体模型请求统一使用桥接地址与临时令牌。
+宿主固定 `model`、`max_tokens`、`thinking=disabled`，上游 `stream=false`；
+收到完整响应并结算后才转换为 SDK 兼容的 SSE。因此工具进度实时展示，上游输出并非逐 token 流式。
+
+DeepSeek 请求先按 `(context_tokens × 输入单价 + max_tokens × 输出单价) / 1,000,000` 估算最坏美元费用，
+通过 SQLite `BEGIN IMMEDIATE` 预占，再发请求；有效 usage 返回后按实际 token 与配置价格结算差额。
+预占与结算使用同一天账目，跨午夜请求不会将退款记错日期。
+网络结果不明、5xx 或 usage 缺失保留保守金额；4xx 释放该次费用预占。
+适配器本身不自动重试；Hermes 若重试，每次都会重新经过调用计数与费用守卫。
+
+每日 `daily_budget.max_model_calls` 与美元上限分别约束调用次数和费用；研究与聊天共享账本。
+每个桥接请求先尝试原子增加调用计数，费用拒绝也可能占用一次调用名额；费用拒绝返回 HTTP 402。
+本机授权配置为每日 $5，发行默认上限为 0；缺价格或零上限拒绝付费请求。
+原子费用预占是 DeepSeek 路径的实现，不能推及其他供应商或 shell 自行发起的外部消费。
 
 ---
 
@@ -105,7 +228,8 @@ schema 只做**纯新增迁移**（`db.MIGRATIONS[v]["additive"]`），所以旧
 
 | 接口 | 实现 | 工厂 |
 |---|---|---|
-| 模型 `extract_knowledge / plan` | `MockLLM`（离线、确定性）、`AnthropicLLM` | `llm.make_llm(cfg)` |
+| 模型 `extract_knowledge / plan` | `MockLLM`（离线、确定性）、`AnthropicLLM`、`DeepSeekLLM` | `llm.make_llm(cfg)` |
+| 对话执行 | 本地 Hermes `AIAgent`、基础项目聊天 | `Conversation.use_hermes` |
 | 执行器 `write_candidate` | `TemplateExecutor`、`ClaudeCodeExecutor`、3 个红队执行器 | `executors.EXECUTORS` + `make_executor` |
 | 来源提供者 `search` | `LiveProvider`（arXiv / GitHub）、`SnapshotProvider`（录制回放） | `discovery.make_provider` |
 | 通知 `send` | `Notifier`（只写 outbox）、`StdoutNotifier`、`FeishuWebhookNotifier` | `notify.make_notifier` |
@@ -142,12 +266,13 @@ READY → APPLIED → ROLLED_BACK
 | 采用规则 | `policy.decide` | F1 增量、误删率、关键条目、延迟、回归测试 |
 | 预算 | `budget.Budget.check` | 花费**之前**检查，超出就抛 `BudgetExhausted` |
 | 每日账本 | `budget.DailyLedger` | 跨任务的每日上限，worker 领取任务前检查 |
-| 费用 | `costs.SpendGuard.check` | 按最坏情况检查当日费用上限；未知价格直接拒绝 |
+| 费用 | `costs.SpendGuard.check / reserve / settle` | 按最坏情况检查上限；DeepSeek 原子预占，未知价格直接拒绝 |
 | 守护进程 | `worker.check_daemon_config` | 没开 `background`、没设每日预算、付费模型没配价格 |
 | 聊天权限 | `chat.ChatRouter` | 读 / 写 / 管理三级权限，采用和回滚另需一次性确认码 |
 
-共同原则：**模型可以提建议，但判定由程序做**。没有任何守卫依赖“在提示里告诉模型不要做某事”。
+研究与项目命令路径的共同原则：**模型可以提建议，但判定由程序做**。
 守卫都是先检查、再执行，拒绝时给出能操作的原因，比如“设置 model.price_per_mtok”。
+本地智能体另有权限与行为约束，不能把本表理解为针对本机 shell 的强隔离，见第 1.5 节及 DESIGN 第 5 节。
 
 ### 2.4 纵深防御：源码隔离 + 执行隔离 + 范围检查
 
@@ -203,9 +328,10 @@ READY → APPLIED → ROLLED_BACK
 
 ### 2.9 端口与适配器：核心不依赖任何渠道
 
-`ChatRouter.handle(user, text, channel)` 是唯一入口：命令解析、中英文别名、权限、确认码、反馈标注都在这里。
-CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是把消息转成 `(user, text)` 交给它。
-任务书要求“核心不能依赖单一渠道”，这就是实现方式；飞书长连接只新增了约 30 行适配代码。
+`ChatRouter.handle(user, text, channel)` 是项目命令入口：命令解析、中英文别名、权限、确认码、反馈标注都在这里。
+本地 CLI 先经过 `Conversation`，自然语言交给智能体，直接命令交给路由器；
+Hermes 的 `project_command` 通过桥接进入同一路由器。飞书回调与长连接仍直接传递事件到路由器。
+研究核心不依赖单一渠道，新增渠道也不自动获得本机工具权限。
 
 ### 2.10 代码生成：模板而不是自由改写（`templates.py`）
 
@@ -256,9 +382,9 @@ CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是�
 
 1. **先核对，再引用**：每个项目都看了固定 commit 的 README 和代码结构，记录 SHA、许可证和实际状态
    （区分“已实现”和“Planned”）。论文按 arXiv 版本号核对。
-2. **判断栈是否匹配**：本项目的约束是单机、离线可跑、标准库、可审计。完整框架（TypeScript、Docker、DSPy）
-   即使优秀，引入的依赖和假设也比带来的价值多。
-3. **借流程和约束，不复制代码**：所有代码都是自己写的；借来的是“哪些步骤必须分开”“哪些东西候选不能碰”这类设计决定。
+2. **按能力选择依赖**：研究核心保留单机、离线可跑和标准库路径；本地通用任务需要成熟的工具循环，
+   以可选依赖和固定源码包引入 Hermes。
+3. **区分设计借鉴与源码复用**：研究状态机借鉴流程与约束；Hermes Agent 则直接复用实际源码，记录版本、许可证与适配差异。
 4. **记录没借的部分和原因**：不采用也是决策，需要写下来。
 
 ### 3.2 逐项对照
@@ -270,7 +396,8 @@ CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是�
 | **RD-Agent**（microsoft/RD-Agent，`484776c2`，MIT） | 研究 → 实现 → 实验反馈的阶段划分清楚 | 研究、知识、规划、实现、评测拆成独立模块和状态 | 面向数据科学竞赛，依赖重、以 Linux 为主 |
 | **OpenEvolve**（`5153a7d7`，Apache-2.0） | 评测器驱动的多变体生成与筛选 | 一个提案带多个变体，由评测器选择 | 变体数量放进预算；筛选只在开发集上做，保留集只评选中的那一个（OpenEvolve 本身不强调这一点） |
 | **GEPA**（gepa-ai/gepa，`7af5f0c5`，MIT） | 从执行记录反思，优化文本参数 | 思路：失败样例（`failures`）反馈给规划器 | 暂未引入，作为以后的候选优化器备选 |
-| **Hermes Self-Evolution**（NousResearch，`0a929e3a`，未声明许可证） | 技能文件（SKILL.md）的自我优化 | 核对后确认只有 Phase 1 已实现，其余是 Planned | 不作为依赖；许可证未声明；本机没装 Hermes，通过 CLI 接入的方式写在文档里 |
+| **Hermes Agent**（NousResearch/hermes-agent，`6dca67ed`，MIT） | 连续模型工具循环、本机工具、记忆、技能、历史与压缩 | 直接随包分发并运行 `AIAgent`、工具分发器和原生工具；宿主适配预算、凭据、进程与项目命令 | 未接入完整产品的桌面 UI、语音、图片生成及全部平台；依赖由 Omnilaw 管理 |
+| **Hermes Self-Evolution**（另一个仓库，`0a929e3a`，未声明许可证） | 技能文件（SKILL.md）的自我优化 | 首版调研记录：固定版本只有 Phase 1 已实现，其余是 Planned | 不作为依赖，不能与上面的 MIT Hermes Agent 混同 |
 | **Awesome Self-Evolving Coding Agents** | 索引 | 用来发现项目 | 只用于发现，不作为效果证据 |
 | 论文 arXiv 2608.02636v1（多轮技能进化反馈） | 实证：有效改进不是每轮都有；验证集收益和测试集收益可能不一致 | 允许“本轮无可采用版本”；开发集与保留集分离；保留集曝光次数受限 | — |
 
@@ -291,6 +418,8 @@ CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是�
 | `paraphrase-multilingual-MiniLM-L12-v2` | 专为复述训练，覆盖 50+ 语言（含中英），Apache-2.0 | 对比 LaBSE：1.9 GB，太重 |
 | 官方 `anthropic` SDK | 结构化输出、免费的 token 计数接口 | token 计数让费用守卫可以在调用**前**算出精确的输入成本 |
 | 官方 `lark-oapi` SDK | 长连接接收事件 | 不需要公网地址和反向代理，个人电脑也能用 |
+| 固定版 Hermes Agent + `openai` SDK | 已有完整工具循环与 OpenAI 兼容传输 | worker 复用核心，SDK 连接本机计费桥接，上游仍是配置的 DeepSeek |
+| `browser-harness`、DDGS、trafilatura / BeautifulSoup | 浏览器操作、搜索和本地正文提取 | 复用 Hermes 提供者与工具接口，网页能力无需另配搜索 Key |
 
 ---
 
@@ -298,11 +427,11 @@ CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是�
 
 | 维度 | 本项目的选择 | 代价 |
 |---|---|---|
-| 依赖 | 核心只用标准库 | 一些轮子要自己写（cron 解析、队列、沙箱封装） |
-| 隔离 | worktree + 系统沙箱，不用 Docker | `sandbox-exec` 已被 Apple 标记弃用；Linux `bwrap` 路径没在本机测过 |
-| 进化范围 | 只允许改一个文件 | 能力增长慢，但每一步都能审计、能回滚 |
+| 依赖 | 研究核心只用标准库；本地智能体使用 Hermes + `.[agent]` | 智能体要求 Python 3.14，需维护固定源码包与可选依赖 |
+| 隔离 | 研究候选用 worktree + 系统沙箱；本地工具使用宿主用户权限 | `sandbox-exec` 已弃用；本地工具不是候选沙箱，配置隔离不等于文件系统隔离 |
+| 进化范围 | 后台候选默认只能改去重文件；本地智能体可完成用户委托的编程任务 | 本地修改不会自动成为经评测与采用的研究发布 |
 | 采用 | 默认必须人工确认 | 不全自动；自动采用留到第三阶段，而且默认关闭 |
-| 评测 | 小规模虚构数据，规则预先写定 | 数据覆盖不足时，好方法也可能过不了门槛（0.3.0 语义方法就是这样），需要人来扩充数据 |
+| 评测 | 正式集 790 条，演示仍用小规模虚构数据；规则预先写定 | PAWS-X 等代理数据不能代替真实新闻流人工标注，历史实验仍按当时规则解释 |
 
 ---
 
@@ -313,6 +442,8 @@ CLI、飞书回调、飞书长连接、以后可能接入的 Hermes，都只是�
 | 接入新模型厂商 | 新增一个实现 `extract_knowledge / plan` 的适配器，在 `make_llm` 里登记 | runner、planner、worker |
 | 新的编程执行器 | 实现 `write_candidate`，登记到 `EXECUTORS` | 范围守卫和评测会自动生效 |
 | 新聊天渠道 | 把消息转成 `ChatRouter.handle(user, text)` | 权限、确认码、命令 |
+| 扩展本地工具 | Hermes 工具注册或提供者接口、`hermes_runtime.TOOLSETS` | 上游循环；需另核对能力权限、依赖与费用路径 |
+| 更新 Hermes 版本 | `scripts/vendor_hermes.py`、源码清单、可选依赖；重跑真实工具与恢复测试 | 研究状态机；不能直接复制运行中的用户配置目录 |
 | 新的进化目标模块 | 配置 `target_module` / `writable_paths`，准备评测数据和契约测试 | 状态机、发布、回滚 |
 | 新的去重方法 | 在 `templates.py` 加代码块，在 `knowledge.METHOD_CATALOG` 加条目 | 评测器 |
 | 新的来源类型 | 扩展 `sources.Fetcher` / `discovery` 的提供者 | 知识与规划 |
